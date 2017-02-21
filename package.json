@@ -1,0 +1,58 @@
+{
+  "name": "vscode-documents-scripting",
+  "displayName": "VS Code extension for portal scripting",
+  "description": "",
+  "version": "0.0.1",
+  "publisher": "heller",
+  "engines": {
+    "vscode": "^1.5.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:extension.downloadAllScripts",
+    "onCommand:extension.uploadScript",
+    "onCommand:extension.runScript",
+    "onLanguage:javascript",
+    "onLanguage:typescript"
+  ],
+  "main": "./out/src/extension",
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.downloadAllScripts",
+        "title": "Download All Scripts"
+      },
+      {
+        "command": "extension.uploadScript",
+        "title": "Upload Script"
+      },
+      {
+        "command": "extension.runScript",
+        "title": "Run Script"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "tsc -p ./",
+    "compile": "tsc -watch -p ./",
+    "postinstall": "node ./node_modules/vscode/bin/install",
+    "test": "node ./node_modules/vscode/bin/test"
+  },
+  "devDependencies": {
+    "typescript": "^2.0.3",
+    "vscode": "^1.0.0",
+    "mocha": "^2.3.3",
+    "@types/node": "^6.0.40",
+    "@types/mocha": "^2.2.32"
+  },
+  "dependencies": {
+    "fs": "0.0.1-security",
+    "net": "^1.0.2",
+    "node-sds": "file:///C:\\projekte\\node-sds",
+    "path": "^0.12.7",
+    "reduce-for-promises": "^1.2.1",
+    "typescript-compiler": "^1.4.1-2"
+  }
+}
