@@ -216,25 +216,39 @@ export function activate(context: vscode.ExtensionContext)
     vscode.window.setStatusBarMessage('vscode-documents-scripting is active');
 
     config = new Config();
-
-    let disposable1 = vscode.commands.registerCommand('extension.downloadAllScripts', () => {
-        callOperationOnServer("downloadAllScripts");
-    });
-
-    let disposable2 = vscode.commands.registerCommand('extension.uploadScript', () => {
-        callOperationOnServer("uploadScript");
-    });
-    disposableOnSave = vscode.workspace.onDidSaveTextDocument(onDidSaveScript, this);
-
-    let disposable3 = vscode.commands.registerCommand('extension.runScript', () => {
-        callOperationOnServer("runScript");
-    });
-
     context.subscriptions.push(config);
-    context.subscriptions.push(disposable1);
-    context.subscriptions.push(disposable2);
-    context.subscriptions.push(disposable3);
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.downloadAllScripts', () => {
+            callOperationOnServer("downloadAllScripts");
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.uploadScript', () => {
+            callOperationOnServer("uploadScript");
+        })
+    );
+    disposableOnSave = vscode.workspace.onDidSaveTextDocument(onDidSaveScript, this);
     context.subscriptions.push(disposableOnSave);
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.runScript', () => {
+            callOperationOnServer("runScript");
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.changeLoginData', () => {
+            vscode.window.setStatusBarMessage('changeLoginData is coming soon');
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.changeDownloadPath', () => {
+            vscode.window.setStatusBarMessage('changeDownloadPath is coming soon');
+        })
+    );
 }
 
 // load script automatically when script is saved

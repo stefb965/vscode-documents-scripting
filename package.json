@@ -31,6 +31,14 @@
       {
         "command": "extension.runScript",
         "title": "Run Script"
+      },
+      {
+        "command": "extension.changeLoginData",
+        "title": "Change Login Data"
+      },
+      {
+        "command": "extension.changeDownloadPath",
+        "title": "Change Download Path"
       }
     ]
   },
