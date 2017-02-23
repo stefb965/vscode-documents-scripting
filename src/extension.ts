@@ -16,6 +16,7 @@ const SDS_TIMEOUT: number = 60 * 1000;
 
 
 
+// make new class and set as parameter
 var myOutputChannel = vscode.window.createOutputChannel('MyChannelName');
 let iniData;
 let disposableOnSave;
@@ -84,7 +85,7 @@ function onDidSaveScript(textDocument: vscode.TextDocument)
 
     // javascript files
     if(textDocument.fileName.endsWith(".js")) {
-        let upload = 'Upload script to PortalServer?';
+        let upload = 'Upload script to Server?';
         let cancel = 'Not now';
         let never  = 'Never in this session';
         vscode.window.showQuickPick([upload, cancel, never]).then((value) => {
@@ -100,7 +101,7 @@ function onDidSaveScript(textDocument: vscode.TextDocument)
 
     // typescript files
     if(textDocument.fileName.endsWith(".ts")) {
-        let upload = 'Compile and upload javascript to PortalServer?';
+        let upload = 'Compile and upload javascript to Server?';
         let cancel = 'Not now';
         let never  = 'Never in this session';
         vscode.window.showQuickPick([upload, cancel, never]).then((value) => {
@@ -151,12 +152,7 @@ function connectAndCallOperation(operation: string, textDocument?: vscode.TextDo
                     });
                 }).catch((reason) => {
                     console.log(reason);
-                    closeConnection(sdsConnection).catch((reason) => {
-                        // sds sends no response to disconnect
-                        // todo:
-                        // parse reason, console.log(reason);
-                        // check here if socket.on(close) has been executed
-                    });
+                    closeConnection(sdsConnection); // => check socket-on-close
                 });
 
             }).catch((reason) => {
@@ -349,7 +345,7 @@ async function doLogin(sdsSocket: Socket): Promise<SDSConnection> {
         let sdsConnection = new SDSConnection(sdsSocket);
         sdsConnection.timeout = SDS_TIMEOUT;
 
-        sdsConnection.connect().then(() => {
+        sdsConnection.connect('vscode-documents-scripting').then(() => {
 
             // connect successful
             return sdsConnection.changeUser(iniData.user,  iniData.password);
