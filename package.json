@@ -48,7 +48,8 @@
     "postinstall": "node ./node_modules/vscode/bin/install",
     "test": "node ./node_modules/vscode/bin/test",
     "package": "vsce package",
-    "//": "after package: code --install-extension vscode-documents-scripting-x.y.z.vsix"
+    "installextension": "code --install-extension vscode-documents-scripting-0.0.1.vsix",
+    "//": "reference version in script installextenstion?"
   },
   "devDependencies": {
     "typescript": "^2.0.3",
