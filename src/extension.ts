@@ -13,6 +13,13 @@ import * as config from './config';
 
 const SDS_TIMEOUT: number = 60 * 1000;
 
+const QUICKPICK_UPLOAD:  string = 'Upload script to Server?';
+const QUICKPICK_COMPILE: string = 'Compile and upload javascript to Server?';
+const QUICKPICK_CANCEL:  string = 'Not now';
+const QUICKPICK_NEVER:   string = 'Never in this session';
+
+const OPERATION_UPLOAD:  string = 'uploadScript';
+
 
 
 
@@ -40,7 +47,7 @@ export function activate(context: vscode.ExtensionContext)
     // upload script
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.uploadScript', () => {
-            connectAndCallOperation("uploadScript");
+            connectAndCallOperation(OPERATION_UPLOAD);
         })
     );
     disposableOnSave = vscode.workspace.onDidSaveTextDocument(onDidSaveScript, this);
@@ -85,14 +92,11 @@ function onDidSaveScript(textDocument: vscode.TextDocument)
 
     // javascript files
     if(textDocument.fileName.endsWith(".js")) {
-        let upload = 'Upload script to Server?';
-        let cancel = 'Not now';
-        let never  = 'Never in this session';
-        vscode.window.showQuickPick([upload, cancel, never]).then((value) => {
-            if(upload === value) {
-                connectAndCallOperation("uploadScript", textDocument);
+        vscode.window.showQuickPick([QUICKPICK_UPLOAD, QUICKPICK_CANCEL, QUICKPICK_NEVER]).then((value) => {
+            if(QUICKPICK_UPLOAD === value) {
+                connectAndCallOperation(OPERATION_UPLOAD, textDocument);
             }
-            if(never === value) {
+            if(QUICKPICK_NEVER === value) {
                 disposableOnSave.dispose();
             }
         });
@@ -101,14 +105,11 @@ function onDidSaveScript(textDocument: vscode.TextDocument)
 
     // typescript files
     if(textDocument.fileName.endsWith(".ts")) {
-        let upload = 'Compile and upload javascript to Server?';
-        let cancel = 'Not now';
-        let never  = 'Never in this session';
-        vscode.window.showQuickPick([upload, cancel, never]).then((value) => {
-            if(upload === value) {
-                connectAndCallOperation("uploadScript", textDocument);
+        vscode.window.showQuickPick([QUICKPICK_COMPILE, QUICKPICK_CANCEL, QUICKPICK_NEVER]).then((value) => {
+            if(QUICKPICK_COMPILE === value) {
+                connectAndCallOperation(OPERATION_UPLOAD, textDocument);
             }
-            if(never === value) {
+            if(QUICKPICK_NEVER === value) {
                 disposableOnSave.dispose();
             }
         });
@@ -184,7 +185,7 @@ function connectAndCallOperation(operation: string, textDocument?: vscode.TextDo
 
 async function switchOperation(sdsConnection: SDSConnection, operation: string,  textDocument?: vscode.TextDocument): Promise<void> {
 
-    if("uploadScript" === operation) {
+    if(OPERATION_UPLOAD === operation) {
         return uploadScript(sdsConnection, textDocument);
     }
     else if("downloadAllScripts" === operation) {
@@ -263,12 +264,12 @@ async function uploadScript(sdsConnection: SDSConnection, textDocument?: vscode.
         else {
             let editor = vscode.window.activeTextEditor;
             if (!editor) {
-                reject("uploadScript(): editor undefined");
+                reject(OPERATION_UPLOAD + '(): editor undefined');
             }
             doc = editor.document;
         }
         if(!doc) {
-            reject("uploadScript(): text-document undefined");
+            reject(OPERATION_UPLOAD + '(): text-document undefined');
         }
 
 
@@ -290,7 +291,7 @@ async function uploadScript(sdsConnection: SDSConnection, textDocument?: vscode.
             console.log("scriptSource: " + scriptSource);
         }
         else {
-            reject("uploadScript(): only javascript or typescript files");
+            reject(OPERATION_UPLOAD + '(): only javascript or typescript files');
         }
 
     
@@ -299,7 +300,7 @@ async function uploadScript(sdsConnection: SDSConnection, textDocument?: vscode.
             vscode.window.setStatusBarMessage('uploaded: ' + shortName);
             resolve();
         }).catch((reason) => {
-            reject("uploadScript(): sdsConnection.pdcCallOperation failed: " + reason);
+            reject(OPERATION_UPLOAD + '(): sdsConnection.pdcCallOperation failed: ' + reason);
         });
     });
 }
@@ -310,11 +311,11 @@ async function runScript(sdsConnection: SDSConnection): Promise<void> {
         let editor = vscode.window.activeTextEditor;
         if (!editor) 
         {
-            reject("uploadScript(): editor undefined");
+            reject("runScript(): editor undefined");
         }
         if(!editor.document.fileName.endsWith(".js"))
         {
-            reject("uploadScript(): only javascript files");
+            reject("runScript(): only javascript files");
         }
         let doc = editor.document;
 
