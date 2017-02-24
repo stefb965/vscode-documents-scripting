@@ -231,16 +231,35 @@ async function downloadScript(sdsConnection: SDSConnection, scriptName: string):
     return new Promise<void>((resolve, reject) => {
         sdsConnection.callClassOperation("PortalScript.downloadScript", [scriptName]).then((scriptSource) => {
             if('' === iniData.localpath) {
-                reject("no localpath");
+                reject("localpath missing");
             }
             let scriptPath = iniData.localpath + "\\" + scriptName + ".js";
             fs.writeFile(scriptPath, scriptSource[0], {encoding: 'utf8'}, function(error) {
                 if(error) {
-                    reject(error);
+                    if(error.code === "ENOENT") {
+                        fs.mkdir(iniData.localpath, function(error) {
+                            if(error) {
+                                reject(error);
+                            } else {
+                                console.log("created path: " + iniData.localpath);
+                                fs.writeFile(scriptPath, scriptSource[0], {encoding: 'utf8'}, function(error) {
+                                    if(error) {
+                                        reject(error);
+                                    } else {
+                                        console.log("downloaded script: " +  scriptPath);
+                                        resolve();
+                                    }
+                                });
+                            }
+                        });
+                    } else {
+                        reject(error);
+                    }
+                } else {
+                    console.log("downloaded script: " +  scriptPath);
+                    resolve();
                 }
             });
-            console.log("downloaded script: " +  scriptPath);
-            resolve();
         }).catch((reason) => {
             reject("downloadScript(" + scriptName + ") failed: " + reason);
         });
@@ -284,8 +303,8 @@ async function uploadScript(sdsConnection: SDSConnection, textDocument?: vscode.
         else if(doc.fileName.endsWith(".ts")) {
             let tsname:string = doc.fileName;
             let jsname:string = tsname.substr(0, tsname.length - 3) + ".js";
-            //let tscargs = ['--module', 'commonjs', '-t', 'ES5'];
-            let tscargs = ['-t', 'ES6', '--out', jsname];
+            //let tscargs = ['--module', 'commonjs', '-t', 'ES6'];
+            let tscargs = ['-t', 'ES5', '--out', jsname];
             let retval = tsc.compile([doc.fileName], tscargs, null, function(e) { console.log(e) });
             scriptSource = retval.sources[jsname];
             console.log("scriptSource: " + scriptSource);
