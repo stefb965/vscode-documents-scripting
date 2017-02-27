@@ -11,33 +11,33 @@ const INIPATH: string = '[INIPATH]';
 
 export class IniData {
     // todo private + getter...
-    
+
     // login data
-    public server:string    = '';
-    public port:number      = 0;
-    public principal:string = '';
-    public user:string      = '';
-    public password:string  = '';
-    
+    public server: string    = '';
+    public port: number      = 0;
+    public principal: string = '';
+    public user: string      = '';
+    public password: string  = '';
+
     // path for up- and download all
-    public localpath:string = '';
+    public localpath: string = '';
 
     // const
     // windows eol
-    private eol:string = '\r\n';
-    
+    private eol: string = '\r\n';
+
     constructor () {
         //
     }
 
-    public checkLoginData():boolean{
+    public checkLoginData(): boolean {
         if('' === this.server || 0  === this.port || '' === this.principal || '' === this.user) {
             return false;
         }
         return true;
     }
 
-    public checkDownloadPath():boolean{
+    public checkDownloadPath(): boolean {
         if('' === this.localpath) {
             return false;
         }
@@ -71,7 +71,7 @@ export class IniData {
             }
         });
     }
-    
+
 
     async askForLoginData(): Promise<void> {
         return new Promise<void>((resolve, reject) => {
@@ -129,7 +129,7 @@ export class IniData {
 
     public iniFile:string   = '';
     public iniPath:string   = '';
-    
+
     public loadIniFile(): boolean {
         let path = this.getActivePath();
         let file = this.findIni(path);
@@ -146,7 +146,7 @@ export class IniData {
         if(INI_CONN_PART === lines[0]) {
             for(let i=1; i<lines.length; i++) {
                 let line = lines[i].split("=");
-                if(this[line[0]] != undefined) {
+                if(this[line[0]] !== undefined) {
                     switch(line[0]) {
                         case 'password':
                             this[line[0]] = line[1];
@@ -186,8 +186,7 @@ export class IniData {
         });
     }
 
-    public getActivePath():string
-    {
+    public getActivePath(): string {
         let editor = vscode.window.activeTextEditor;
         if (!editor) {
             return null;
@@ -197,8 +196,7 @@ export class IniData {
         return parsedPath.dir;
     }
 
-    public findIni(path: string):string
-    {
+    public findIni(path: string): string {
         if(!path) {
             return null;
         }

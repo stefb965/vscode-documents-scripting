@@ -24,14 +24,13 @@ const OPERATION_UPLOAD:  string = 'uploadScript';
 
 
 // make new class and set as parameter
-var myOutputChannel = vscode.window.createOutputChannel('MyChannelName');
+let myOutputChannel = vscode.window.createOutputChannel('MyChannelName');
 let iniData;
 let disposableOnSave;
 
 
 
-export function activate(context: vscode.ExtensionContext)
-{
+export function activate(context: vscode.ExtensionContext) {
     vscode.window.setStatusBarMessage('vscode-documents-scripting is active');
 
     iniData = new config.IniData();
@@ -79,7 +78,7 @@ export function activate(context: vscode.ExtensionContext)
 }
 
 export function deactivate() {
-    console.log("The extension is deactivated")
+    console.log("The extension is deactivated");
 }
 
 
@@ -87,8 +86,7 @@ export function deactivate() {
 
 
 // load script automatically when script is saved
-function onDidSaveScript(textDocument: vscode.TextDocument)
-{
+function onDidSaveScript(textDocument: vscode.TextDocument) {
 
     // javascript files
     if(textDocument.fileName.endsWith(".js")) {
@@ -305,7 +303,7 @@ async function uploadScript(sdsConnection: SDSConnection, textDocument?: vscode.
             let jsname:string = tsname.substr(0, tsname.length - 3) + ".js";
             //let tscargs = ['--module', 'commonjs', '-t', 'ES6'];
             let tscargs = ['-t', 'ES5', '--out', jsname];
-            let retval = tsc.compile([doc.fileName], tscargs, null, function(e) { console.log(e) });
+            let retval = tsc.compile([doc.fileName], tscargs, null, function(e) { console.log(e); });
             scriptSource = retval.sources[jsname];
             console.log("scriptSource: " + scriptSource);
         }
@@ -328,12 +326,10 @@ async function uploadScript(sdsConnection: SDSConnection, textDocument?: vscode.
 async function runScript(sdsConnection: SDSConnection): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         let editor = vscode.window.activeTextEditor;
-        if (!editor) 
-        {
+        if (!editor) {
             reject("runScript(): editor undefined");
         }
-        if(!editor.document.fileName.endsWith(".js"))
-        {
+        if(!editor.document.fileName.endsWith(".js")) {
             reject("runScript(): only javascript files");
         }
         let doc = editor.document;
@@ -346,8 +342,7 @@ async function runScript(sdsConnection: SDSConnection): Promise<void> {
         
         sdsConnection.callClassOperation("PortalScript.runScript", [shortName]).then((value) => {
             vscode.window.setStatusBarMessage('runScript: ' + shortName);
-            for(let i=0; i<value.length; i++)
-            {
+            for(let i=0; i<value.length; i++) {
                 console.log("returnValue " + i + ": " + value[i]);
                 myOutputChannel.append(value[i] + "\n");
                 myOutputChannel.show();
@@ -400,7 +395,7 @@ async function doLogin(sdsSocket: Socket): Promise<SDSConnection> {
             closeConnection(sdsConnection).catch((reason) => {
                 console.log(reason);
             });
-        })
+        });
     });
 }
 
