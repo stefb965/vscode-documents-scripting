@@ -368,7 +368,7 @@ async function doLogin(sdsSocket: Socket): Promise<SDSConnection> {
         sdsConnection.connect('vscode-documents-scripting').then(() => {
 
             // connect successful
-            return sdsConnection.changeUser(iniData.user,  iniData.password);
+            return sdsConnection.changeUser(iniData.user, new Hash(iniData.password));
         }).catch((reason) => {
 
             // connect failed

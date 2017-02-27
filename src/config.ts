@@ -17,12 +17,15 @@ export class IniData {
     public port:number      = 0;
     public principal:string = '';
     public user:string      = '';
-    public password:Hash    = new Hash('');
-
+    public password:string  = '';
+    
     // path for up- and download all
     public localpath:string = '';
-    
 
+    // const
+    // windows eol
+    private eol:string = '\r\n';
+    
     constructor () {
         //
     }
@@ -101,7 +104,7 @@ export class IniData {
                     ignoreFocusOut: true,
                 });
             }).then((password) => {
-                this.password = new Hash(password);
+                this.password = password;
                 resolve();
             });
         });
@@ -139,14 +142,14 @@ export class IniData {
 
         let contentBuf = fs.readFileSync(file, 'utf8');
         let contentStr = contentBuf.toString();
-        let lines = contentStr.split("\r\n");
+        let lines = contentStr.split(this.eol);
         if(INI_CONN_PART === lines[0]) {
             for(let i=1; i<lines.length; i++) {
                 let line = lines[i].split("=");
                 if(this[line[0]] != undefined) {
                     switch(line[0]) {
                         case 'password':
-                            this[line[0]] = new Hash(line[1]);
+                            this[line[0]] = line[1];
                             break;
                         case 'localpath':
                             if(INIPATH === line[1]) {
@@ -158,11 +161,29 @@ export class IniData {
                         default:
                             this[line[0]] = line[1];
                     }
-                    console.log(line[0] + ": " + line[1]);
+                    console.log(line[0] + ': ' + line[1]);
                 }
             }
         }
         return true;
+    }
+
+    async writeIniFile(path: string): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            let inifile = '';
+            inifile += 'server=' + this.server + this.eol;
+            inifile += 'port=' + this.port + this.eol;
+            inifile += 'principal=' + this.principal + this.eol;
+            inifile += 'user=' + this.user + this.eol;
+            inifile += 'password=' + this.password + this.eol;
+            inifile += 'localpath=' + this.localpath + this.eol;
+            fs.writeFile(path, inifile, {encoding: 'utf8'}, function(error) {
+                if(error) {
+                    reject(error);
+                }
+                resolve();
+            });
+        });
     }
 
     public getActivePath():string
