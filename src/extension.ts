@@ -5,12 +5,12 @@ import { parse, ParsedPath, sep } from 'path';
 import * as vscode from 'vscode';
 import { connect, Socket } from 'net';
 import * as reduce from 'reduce-for-promises';
-import { SDSConnection, Hash } from 'node-sds';
+import { SDSConnection, Hash, crypt_md5 } from 'node-sds';
 import * as tsc from 'typescript-compiler';
 import * as config from './config';
 
 
-
+const SALT: string = 'o3';
 const SDS_TIMEOUT: number = 60 * 1000;
 
 const QUICKPICK_UPLOAD:  string = 'Upload script to Server?';
@@ -362,24 +362,28 @@ async function doLogin(sdsSocket: Socket): Promise<SDSConnection> {
 
         sdsConnection.connect('vscode-documents-scripting').then(() => {
 
-            console.log("connect successful");
-            return sdsConnection.changeUser(iniData.user, new Hash(iniData.password));
+            console.log('connect successful');
+            if('admin' == iniData.user) {
+                return sdsConnection.changeUser(iniData.user, new Hash(iniData.password));
+            } else {
+                return sdsConnection.changeUser(iniData.user + "." + iniData.principal, crypt_md5(iniData.password, SALT));
+            }
+
         }).then(userId => {
 
-            console.log("changeUser successful");
+            console.log('changeUser successful');
             if (iniData.principal.length > 0) {
                 return sdsConnection.changePrincipal(iniData.principal);
-            }
-            else{
-                reject("doLogin(): please set principal");
+            } else {
+                reject('doLogin(): please set principal');
             }
         }).then(() => {
             
-            console.log("changePrincipal successful");
+            console.log('changePrincipal successful');
             resolve(sdsConnection);
         }).catch((reason) => {
             
-            reject("doLogin() failed: " + reason);
+            reject('doLogin() failed: ' + reason);
             closeConnection(sdsConnection).catch((reason) => {
                 console.log(reason);
             });

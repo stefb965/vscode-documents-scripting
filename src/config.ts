@@ -1,6 +1,5 @@
 ﻿
 import * as vscode from 'vscode';
-import { Hash } from 'node-sds';
 import * as fs from 'fs';
 import { parse, ParsedPath, sep } from 'path';
 
@@ -13,11 +12,12 @@ export class IniData {
     // todo private + getter...
 
     // login data
-    public server: string    = '';
-    public port: number      = 0;
+    // Don't rename!
+    public server: string = '';
+    public port: number = 0;
     public principal: string = '';
-    public user: string      = '';
-    public password: string  = '';
+    public user: string = '';
+    public password: string = '';
 
     // path for up- and download all
     public localpath: string = '';
@@ -145,12 +145,9 @@ export class IniData {
         let lines = contentStr.split(this.eol);
         if(INI_CONN_PART === lines[0]) {
             for(let i=1; i<lines.length; i++) {
-                let line = lines[i].split("=");
+                let line = lines[i].split('=');
                 if(this[line[0]] !== undefined) {
                     switch(line[0]) {
-                        case 'password':
-                            this[line[0]] = line[1];
-                            break;
                         case 'localpath':
                             if(INIPATH === line[1]) {
                                 this[line[0]] = this.iniPath;
