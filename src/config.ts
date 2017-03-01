@@ -1,11 +1,53 @@
 ﻿
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-import { parse, ParsedPath, sep } from 'path';
+import { parse, ParsedPath, sep, dirname } from 'path';
 
 const INI_NAME: string = 'default.ini';
 const INI_CONN_PART: string = '[Connection]';
 const INIPATH: string = '[INIPATH]';
+
+
+
+
+
+
+
+
+async function writeFileMkdir (file, data) {
+    let path = dirname(file);
+    return new Promise<void>((resolve, reject) => {
+        fs.writeFile(file, data, {encoding: 'utf8'}, function(error) {
+            if(error) {
+                if(error.code === 'ENOENT') {
+                    fs.mkdir(path, function(error) {
+                        if(error) {
+                            reject(error);
+                        } else {
+                            console.log('created path: ' + path);
+                            fs.writeFile(file, data, {encoding: 'utf8'}, function(error) {
+                                if(error) {
+                                    reject(error);
+                                } else {
+                                    console.log('wrote file: ' +  file);
+                                    resolve();
+                                }
+                            });
+                        }
+                    });
+                } else {
+                    reject(error);
+                }
+            } else {
+                console.log('wrote file: ' +  file);
+                resolve();
+            }
+        });
+    });
+}
+
+
+
 
 
 export class IniData {
@@ -44,19 +86,28 @@ export class IniData {
         return true;
     }
 
-    async askForDownloadPath(): Promise<void> {
+    async ensureLoginData(): Promise<void> {
+        console.log('IniData.ensureLoginData');
         return new Promise<void>((resolve, reject) => {
-            vscode.window.showInputBox({
-                prompt: 'Please enter the download path',
-                ignoreFocusOut: true,
-            }).then((localpath) => {
-                this.localpath = localpath;
+            if(this.checkLoginData()) {
                 resolve();
-            });
+            }
+            else if(this.loadIniFile() && this.checkLoginData()) {
+                resolve();
+            }
+            else {
+                this.askForLoginData().then(() => {
+                    resolve();
+                }).catch((reason) => {
+                    console.log('askForLoginData failed: ' + reason);
+                    reject(reason);
+                });
+            }
         });
     }
 
     async ensureDownloadPath(): Promise<void> {
+        console.log('IniData.ensureDownloadPath');
         return new Promise<void>((resolve, reject) => {
             if(this.checkDownloadPath()) {
                 resolve();
@@ -74,7 +125,12 @@ export class IniData {
 
 
     async askForLoginData(): Promise<void> {
+        console.log('IniData.askForLoginData');
+
         return new Promise<void>((resolve, reject) => {
+            // showQuickPick() and showInputBox() return thenable(value) objects,
+            // that is, these objects always have a then(value) function,
+            // but value can be undefined
             vscode.window.showInputBox({
                 prompt: 'Please enter the server',
                 ignoreFocusOut: true,
@@ -105,32 +161,49 @@ export class IniData {
                 });
             }).then((password) => {
                 this.password = password;
+                return vscode.window.showQuickPick([
+                    'Create default.ini',
+                    'Maybe later'
+                ]);
+            }).then((decision) => {
+                if('Create default.ini' === decision) {
+                    this.askForDownloadPath().then(() => {
+                        return this.writeIniFile(this.localpath);
+                    }).then(() => {
+                        console.log('writeIniFile successful');
+                        resolve();
+                    }).catch((reason) => {
+                        console.log('askForDownloadPath or writeIniFile failed: ' + reason);
+                        reject(reason);
+                    });
+                } else {
+                    resolve();
+                }
+            });
+        });
+    }
+
+    async askForDownloadPath(): Promise<void> {
+        console.log('IniData.askForDownloadPath');
+        return new Promise<void>((resolve, reject) => {
+            vscode.window.showInputBox({
+                prompt: 'Please enter the download path',
+                ignoreFocusOut: true,
+            }).then((localpath) => {
+                // todo chek path
+                this.localpath = localpath;
                 resolve();
             });
         });
     }
 
-    async ensureLoginData(): Promise<void> {
-        return new Promise<void>((resolve, reject) => {
-            if(this.checkLoginData()) {
-                resolve();
-            }
-            else if(this.loadIniFile() && this.checkLoginData()) {
-                resolve();
-            }
-            else {
-                this.askForLoginData().then(() => {
-                    resolve();
-                });
-            }
-        });
-    }
 
 
     public iniFile:string   = '';
     public iniPath:string   = '';
 
     public loadIniFile(): boolean {
+        console.log('IniData.loadIniFile');
         let path = this.getActivePath();
         let file = this.findIni(path);
         if(!file) {
@@ -166,24 +239,20 @@ export class IniData {
     }
 
     async writeIniFile(path: string): Promise<void> {
-        return new Promise<void>((resolve, reject) => {
-            let inifile = '';
-            inifile += 'server=' + this.server + this.eol;
-            inifile += 'port=' + this.port + this.eol;
-            inifile += 'principal=' + this.principal + this.eol;
-            inifile += 'user=' + this.user + this.eol;
-            inifile += 'password=' + this.password + this.eol;
-            inifile += 'localpath=' + this.localpath + this.eol;
-            fs.writeFile(path, inifile, {encoding: 'utf8'}, function(error) {
-                if(error) {
-                    reject(error);
-                }
-                resolve();
-            });
-        });
+        console.log('IniData.writeIniFile');
+        let inifile = '';
+        inifile += INI_CONN_PART + this.eol;
+        inifile += 'server=' + this.server + this.eol;
+        inifile += 'port=' + this.port + this.eol;
+        inifile += 'principal=' + this.principal + this.eol;
+        inifile += 'user=' + this.user + this.eol;
+        inifile += 'password=' + this.password + this.eol;
+        inifile += 'localpath=' + INIPATH + this.eol;
+        return writeFileMkdir(path + '\\default.ini', inifile);
     }
 
     public getActivePath(): string {
+        console.log('IniData.getActivePath');
         let editor = vscode.window.activeTextEditor;
         if (!editor) {
             return null;
@@ -194,6 +263,7 @@ export class IniData {
     }
 
     public findIni(path: string): string {
+        console.log('IniData.findIni');
         if(!path) {
             return null;
         }

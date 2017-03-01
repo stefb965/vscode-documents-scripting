@@ -39,6 +39,10 @@
       {
         "command": "extension.changeDownloadPath",
         "title": "Change Download Path"
+      },
+      {
+        "command": "extension.createIni",
+        "title": "Create default.ini"
       }
     ]
   },

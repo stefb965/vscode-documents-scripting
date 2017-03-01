@@ -1,7 +1,7 @@
 'use strict';
 
 import * as fs from 'fs';
-import { parse, ParsedPath, sep } from 'path';
+import { parse, ParsedPath, sep, dirname } from 'path';
 import * as vscode from 'vscode';
 import { connect, Socket } from 'net';
 import * as reduce from 'reduce-for-promises';
@@ -73,8 +73,12 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-
-    // add: on-close-vscode: want to save loginData and downloadpath to default.ini?
+    // create default.ini
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.createIni', () => {
+            vscode.window.setStatusBarMessage('createIni is coming soon');
+        })
+    );
 }
 
 export function deactivate() {
@@ -129,6 +133,7 @@ function connectAndCallOperation(operation: string, textDocument?: vscode.TextDo
     }
 
     iniData.ensureLoginData().then(() => {
+        console.log("ensureLoginData successful");
 
         // create socket
         let sdsSocket = connect(iniData.port, iniData.server);
@@ -223,6 +228,7 @@ async function getScriptNames(sdsConnection: SDSConnection): Promise<string[]> {
         });
     });
 }
+
 
 
 async function downloadScript(sdsConnection: SDSConnection, scriptName: string): Promise<void> {
