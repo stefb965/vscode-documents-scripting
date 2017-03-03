@@ -10,11 +10,10 @@ import * as tsc from 'typescript-compiler';
 import * as config from './config';
 
 
-const SALT: string = 'o3';
 const SDS_TIMEOUT: number = 60 * 1000;
 
-const QUICKPICK_UPLOAD:  string = 'Upload script to Server?';
-const QUICKPICK_COMPILE: string = 'Compile and upload javascript to Server?';
+const QUICKPICK_UPLOAD:  string = 'Upload script to Server';
+const QUICKPICK_COMPILE: string = 'Compile and upload javascript to Server';
 const QUICKPICK_CANCEL:  string = 'Not now';
 const QUICKPICK_NEVER:   string = 'Never in this session';
 
@@ -59,24 +58,31 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    // change login data
+    // clear ini data
     context.subscriptions.push(
-        vscode.commands.registerCommand('extension.changeLoginData', () => {
-            vscode.window.setStatusBarMessage('changeLoginData is coming soon');
-        })
-    );
-
-    // change download path
-    context.subscriptions.push(
-        vscode.commands.registerCommand('extension.changeDownloadPath', () => {
-            vscode.window.setStatusBarMessage('changeDownloadPath is coming soon');
+        vscode.commands.registerCommand('extension.clearIniData', () => {
+            if(iniData) {
+                iniData.clearAllData();
+                vscode.window.setStatusBarMessage('Login Data and Downloadpath cleared');
+            }
         })
     );
 
     // create default.ini
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.createIni', () => {
-            vscode.window.setStatusBarMessage('createIni is coming soon');
+            if(iniData) {
+                vscode.window.showInputBox({
+                    prompt: 'Please enter path or filename',
+                    ignoreFocusOut: true,
+                }).then((path) => {
+                    iniData.writeIniFile(path).catch((reason) => {
+                        myOutputChannel.append(reason + '\n');
+                        myOutputChannel.show();
+                    });
+                });
+                vscode.window.setStatusBarMessage('Ini File Created');
+            }
         })
     );
 }
@@ -367,28 +373,27 @@ async function doLogin(sdsSocket: Socket): Promise<SDSConnection> {
         sdsConnection.timeout = SDS_TIMEOUT;
 
         sdsConnection.connect('vscode-documents-scripting').then(() => {
-
             console.log('connect successful');
-            if('admin' == iniData.user) {
-                return sdsConnection.changeUser(iniData.user, new Hash(iniData.password));
-            } else {
-                return sdsConnection.changeUser(iniData.user + "." + iniData.principal, crypt_md5(iniData.password, SALT));
+            let username = iniData.user;
+            if('admin' !== iniData.user) {
+                username += "." + iniData.principal;
             }
+            let password:Hash = iniData.hash? iniData.hash: new Hash(config.PASSWORD);
+            return sdsConnection.changeUser(username,  password);
 
         }).then(userId => {
-
             console.log('changeUser successful');
             if (iniData.principal.length > 0) {
                 return sdsConnection.changePrincipal(iniData.principal);
             } else {
                 reject('doLogin(): please set principal');
             }
+
         }).then(() => {
-            
             console.log('changePrincipal successful');
             resolve(sdsConnection);
+
         }).catch((reason) => {
-            
             reject('doLogin() failed: ' + reason);
             closeConnection(sdsConnection).catch((reason) => {
                 console.log(reason);
