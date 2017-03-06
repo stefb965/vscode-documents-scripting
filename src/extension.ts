@@ -12,8 +12,8 @@ import * as config from './config';
 
 const SDS_TIMEOUT: number = 60 * 1000;
 
-const QUICKPICK_UPLOAD:  string = 'Upload script to Server';
-const QUICKPICK_COMPILE: string = 'Compile and upload javascript to Server';
+const QUICKPICK_UPLOAD:  string = 'Upload script to Server?';
+const QUICKPICK_COMPILE: string = 'Compile and upload javascript to Server?';
 const QUICKPICK_CANCEL:  string = 'Not now';
 const QUICKPICK_NEVER:   string = 'Never in this session';
 
@@ -35,6 +35,7 @@ export function activate(context: vscode.ExtensionContext) {
     iniData = new config.IniData();
     context.subscriptions.push(iniData);
 
+
     // download all
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.downloadAllScripts', () => {
@@ -48,6 +49,7 @@ export function activate(context: vscode.ExtensionContext) {
             connectAndCallOperation(OPERATION_UPLOAD);
         })
     );
+    // upload script on save
     disposableOnSave = vscode.workspace.onDidSaveTextDocument(onDidSaveScript, this);
     context.subscriptions.push(disposableOnSave);
 
@@ -58,34 +60,42 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    // clear ini data
+    // save configuration
     context.subscriptions.push(
-        vscode.commands.registerCommand('extension.clearIniData', () => {
+        vscode.commands.registerCommand('extension.saveConfiguration', () => {
             if(iniData) {
-                iniData.clearAllData();
-                vscode.window.setStatusBarMessage('Login Data and Downloadpath cleared');
+                iniData.inputProcedure().catch((reason) => {
+                    myOutputChannel.append(reason + '\n');
+                    myOutputChannel.show();
+                });
+                vscode.window.setStatusBarMessage('Configuration saved');
             }
         })
     );
 
-    // create default.ini
+    // load configuration
     context.subscriptions.push(
-        vscode.commands.registerCommand('extension.createIni', () => {
+        vscode.commands.registerCommand('extension.loadConfiguration', () => {
             if(iniData) {
-                vscode.window.showInputBox({
-                    prompt: 'Please enter path or filename',
-                    ignoreFocusOut: true,
-                }).then((path) => {
-                    iniData.writeIniFile(path).catch((reason) => {
-                        myOutputChannel.append(reason + '\n');
-                        myOutputChannel.show();
-                    });
-                });
-                vscode.window.setStatusBarMessage('Ini File Created');
+                vscode.window.setStatusBarMessage('Todo be implemented...');
             }
         })
     );
+
+    // clear configuration
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.clearConfiguration', () => {
+            if(iniData) {
+                iniData.clearAllData();
+                vscode.window.setStatusBarMessage('Configuration reset');
+            }
+        })
+    );
+
+
 }
+
+
 
 export function deactivate() {
     console.log("The extension is deactivated");
@@ -378,7 +388,7 @@ async function doLogin(sdsSocket: Socket): Promise<SDSConnection> {
             if('admin' !== iniData.user) {
                 username += "." + iniData.principal;
             }
-            let password:Hash = iniData.hash? iniData.hash: new Hash(config.PASSWORD);
+            let password = iniData.hash? iniData.hash: config.PASSWORD;
             return sdsConnection.changeUser(username,  password);
 
         }).then(userId => {

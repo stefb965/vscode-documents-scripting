@@ -14,33 +14,34 @@
     "onCommand:extension.downloadAllScripts",
     "onCommand:extension.uploadScript",
     "onCommand:extension.runScript",
-    "onCommand:extension.clearIniData",
-    "onCommand:extension.createIni",
-    "onLanguage:javascript",
-    "onLanguage:typescript"
+    "onCommand:extension.saveConfiguration"
   ],
   "main": "./out/src/extension",
   "contributes": {
     "commands": [
       {
         "command": "extension.downloadAllScripts",
-        "title": "Documents: Download All Scripts"
+        "title": "Documents scripting: download all"
       },
       {
         "command": "extension.uploadScript",
-        "title": "Documents: Upload Script"
+        "title": "Documents scripting: upload current"
       },
       {
         "command": "extension.runScript",
-        "title": "Documents: Run Script"
+        "title": "Documents scripting: run current"
       },
       {
-        "command": "extension.clearIniData",
-        "title": "Documents: Clear Login Data and Localpath"
+        "command": "extension.saveConfiguration",
+        "title": "Documents configuration: save"
       },
       {
-        "command": "extension.createIni",
-        "title": "Documents: Create Ini-File"
+        "command": "extension.loadConfiguration",
+        "title": "Documents configuration: load"
+      },
+      {
+        "command": "extension.clearConfiguration",
+        "title": "Documents configuration: clear"
       }
     ]
   },
