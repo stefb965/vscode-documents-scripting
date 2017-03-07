@@ -19,7 +19,7 @@ const QP_MAYBE_LATER: string = 'Maybe later';
 const INPUT_CANCELLED: string = 'Input procedure cancelled';
 
 
-
+// todo new file 'tools.ts'
 async function writeFileMkdir (_path, data) {
     let file: string = '';
     let path: string = '';
@@ -77,13 +77,12 @@ export const SERVER: string = 'localhost';
 export const PORT: number = 11000;
 export const PRINCIPAL: string = '';
 export const USER: string = 'admin';
-export const PASSWORD: string = '';
+export const PASSWORD = '';
 
 export class IniData {
     // todo private + getter...
 
     // login data
-    // Don't rename!
     public server: string;
     public port: number;
     public principal: string;
@@ -95,17 +94,24 @@ export class IniData {
 
     public iniFile:string   = '';
 
-    constructor () {
+    public oc: vscode.OutputChannel;
+
+
+    constructor (oc: vscode.OutputChannel) {
+        this.oc = oc;
         this.clearAllData();
     }
 
-    public clearAllData() {
+    public clearAllData(output = false) {
         this.server = '';
         this.port = 0;
         this.principal = '';
         this.user = '';
         this.hash = undefined;
         this.localpath = '';
+        if(output) {
+            vscode.window.setStatusBarMessage('Reset configuration');
+        }
     }
 
     public checkLoginData(): boolean {
@@ -125,17 +131,18 @@ export class IniData {
     async ensureLoginData(): Promise<void> {
         console.log('IniData.ensureLoginData');
         return new Promise<void>((resolve, reject) => {
+
             if(this.checkLoginData()) {
                 resolve();
-            }
-            else if(this.loadIniFile(this.getActivePath()) && this.checkLoginData()) {
+
+            } else if(this.loadIniFile(this.getActivePath()) && this.checkLoginData()) {
                 resolve();
-            }
-            else {
+
+            } else { // loginData not set and no usable configuration file found
 
                 // askForLoginData() is called inside inputProcedure(),
-                // inputProcedure() additional asks for saving the input
-                // TODO: inputProcedure() only at first call?
+                // inputProcedure() additional asks for the downloadpath
+                // and for saving the input
                 this.inputProcedure().then(() => {
                     resolve();
                 }).catch((reason) => {
@@ -150,11 +157,11 @@ export class IniData {
         return new Promise<void>((resolve, reject) => {
             if(this.checkDownloadPath()) {
                 resolve();
-            }
-            else if(this.loadIniFile(this.getActivePath()) && this.checkDownloadPath()) {
+
+            } else if(this.loadIniFile(this.getActivePath()) && this.checkDownloadPath()) {
                 resolve();
-            }
-            else {
+
+            } else { // no localpath set and no usable configuration file found
                 this.askForDownloadPath().then(() => {
                     resolve();
                 }).catch((reason) => {
@@ -165,7 +172,6 @@ export class IniData {
     }
 
 
-    // returns a resolved Promise
     async inputProcedure(): Promise<void> {
         return new Promise<void>((resolve, reject) => {
 
@@ -185,16 +191,18 @@ export class IniData {
                 ]);
 
             }).then((decision) => {
-                // here only a resolved promise should be returned
+                // only a resolved promise should be returned here
                 // because the server call can be executed even if
                 // the configuration couldn't be saved
-                if(decision) {
+                if(decision) { 
                     let defaultPath: string = this.localpath + sep + INI_DEFAULT_NAME;
                     if(QP_SAVE_CONF === decision) {
                         this.writeIniFile(defaultPath).then(() => {
+                            vscode.window.setStatusBarMessage('Configuration saved');
                             resolve();
                         }).catch((reason) => {
-                            console.log("error: couldn't write ini file");
+                            this.oc.append('Error: cannot save configuration: ' + reason);
+                            this.oc.show();
                             resolve();
                         });
                     } else if (QP_SAVE_CONF_AS === decision) {
@@ -205,22 +213,28 @@ export class IniData {
                         }).then((path) => {
                             if(path) {
                                 this.writeIniFile(path).then(() => {
+                                    vscode.window.setStatusBarMessage('Configuration saved');
                                     resolve();
                                 }).catch((reason) => {
-                                    console.log("error: couldn't write ini file");
+                                    this.oc.append('Error: cannot save configuration: ' + reason);
+                                    this.oc.show();
                                     resolve();
                                 });
                             } else {
+                                console.log('configuration not saved because no path was set');
                                 resolve();
                             }
                         });
-                    } else {
+                    } else { // QP_MAYBE_LATER
+                        console.log('maybe later saved');
                         resolve();
                     }
                 } else {
+                    console.log('user escaped decision');
                     resolve();
                 }
             }).catch((reason) => {
+                console.log('reject from askForLoginData() or askForDownloadPath()');
                 reject(reason);
             });
         });
@@ -270,14 +284,18 @@ export class IniData {
                     this.user = user;
                     return vscode.window.showInputBox({
                         prompt: 'Please enter the password',
-                        value: PASSWORD,
+                        value: this.hash? this.hash.value: PASSWORD,
                         password: true,
                         ignoreFocusOut: true,
                     });
                 }
             }).then((password) => {
                 if(undefined != password) {
-                    if(password.length > 0) {
+                    // empty passwords are not hashed in janus
+                    let pwnotempty: boolean = (password.length > 0);
+                    // only create new hash, if the user typed in a password
+                    let newhash: boolean = (!this.hash || (password !== this.hash.value));
+                    if(pwnotempty && newhash) {
                         this.hash = crypt_md5(password, CRYPTMD5_SALT);
                     }
                     resolve();
@@ -312,18 +330,20 @@ export class IniData {
     }
 
 
-    public loadConfiguration(): boolean {
-        vscode.window.showInputBox({
-            prompt: 'Please enter the file',
-            ignoreFocusOut: true,
-        }).then((file) => {
-            if(file) {
-                return this.loadIniFile(file);
-            } else {
-                return false;
-            }
+    async loadConfiguration(): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            vscode.window.showInputBox({
+                prompt: 'Please enter the file',
+                ignoreFocusOut: true,
+            }).then((file) => {
+                if(file) {
+                    let _file = file.replace(/"/g, '');
+                    this.loadIniFile(_file);
+                    vscode.window.setStatusBarMessage('Configuration loaded');
+                    resolve();
+                }
+            });
         });
-        return true;
     }
 
 
@@ -342,8 +362,10 @@ export class IniData {
         let pw_changed = false;
         if(INI_CONN_PART === lines[0]) {
             for(let i=1; i<lines.length; i++) {
+                // hash values doesn't contain '=',
+                // so it should be ok to split using the seperator '='
                 let line = lines[i].split('=');
-                if(this[line[0]] !== undefined) {
+                if(line && line.length > 0) {
                     switch(line[0]) {
                         case 'server':
                             this.server = line[1];
@@ -358,6 +380,7 @@ export class IniData {
                             this.user = line[1];
                             break;
                         case 'password':
+                            // empty passwords are not hashed in janus
                             if(line[1].length > 0) {
                                 this.hash = crypt_md5(line[1], CRYPTMD5_SALT);
                                 pw_changed = true;
@@ -378,7 +401,6 @@ export class IniData {
                         default:
                             console.log('unknown entry ' + line[1]);
                     }
-                    console.log(line[0] + ': ' + line[1]);
                 }
             }
         }
@@ -393,10 +415,9 @@ export class IniData {
         data += 'port=' + this.port + os.EOL;
         data += 'principal=' + this.principal + os.EOL;
         data += 'user=' + this.user + os.EOL;
+        data += 'password=' + os.EOL;
         if(this.hash) {
             data += 'hash=' + this.hash.value + os.EOL;
-        } else {
-            data += 'password=' + PASSWORD + os.EOL;
         }
         data += 'localpath=' + INI_PATH + os.EOL;
         return writeFileMkdir(path, data);
@@ -441,5 +462,9 @@ export class IniData {
         } catch (e) {
             return null;
         }
+    }
+
+    dispose() {
+        //
     }
 }

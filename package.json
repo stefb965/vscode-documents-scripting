@@ -14,34 +14,35 @@
     "onCommand:extension.downloadAllScripts",
     "onCommand:extension.uploadScript",
     "onCommand:extension.runScript",
-    "onCommand:extension.saveConfiguration"
+    "onCommand:extension.saveConfiguration",
+    "onCommand:extension.loadConfiguration"
   ],
   "main": "./out/src/extension",
   "contributes": {
     "commands": [
       {
         "command": "extension.downloadAllScripts",
-        "title": "Documents scripting: download all"
+        "title": "Documents Scripting: Download All"
       },
       {
         "command": "extension.uploadScript",
-        "title": "Documents scripting: upload current"
+        "title": "Documents Scripting: Upload Current"
       },
       {
         "command": "extension.runScript",
-        "title": "Documents scripting: run current"
+        "title": "Documents Scripting: Run Current"
       },
       {
         "command": "extension.saveConfiguration",
-        "title": "Documents configuration: save"
+        "title": "Documents Configuration: Save"
       },
       {
         "command": "extension.loadConfiguration",
-        "title": "Documents configuration: load"
+        "title": "Documents Configuration: Load"
       },
       {
         "command": "extension.clearConfiguration",
-        "title": "Documents configuration: clear"
+        "title": "Documents Configuration: Clear"
       }
     ]
   },

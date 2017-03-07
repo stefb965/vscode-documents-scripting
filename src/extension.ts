@@ -23,16 +23,19 @@ const OPERATION_UPLOAD:  string = 'uploadScript';
 
 
 // make new class and set as parameter
-let myOutputChannel = vscode.window.createOutputChannel('MyChannelName');
-let iniData;
-let disposableOnSave;
+let myOutputChannel: vscode.OutputChannel = vscode.window.createOutputChannel('MyChannelName');
+let iniData: config.IniData;
+let disposableOnSave: vscode.Disposable;
 
 
 
 export function activate(context: vscode.ExtensionContext) {
-    vscode.window.setStatusBarMessage('vscode-documents-scripting is active');
 
-    iniData = new config.IniData();
+    iniData = new config.IniData(myOutputChannel);
+    if(!iniData) {
+        myOutputChannel.append('Cannot activate vscode-documents-scripting');
+        return;
+    }
     context.subscriptions.push(iniData);
 
 
@@ -64,11 +67,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.saveConfiguration', () => {
             if(iniData) {
-                iniData.inputProcedure().catch((reason) => {
-                    myOutputChannel.append(reason + '\n');
-                    myOutputChannel.show();
-                });
-                vscode.window.setStatusBarMessage('Configuration saved');
+                iniData.inputProcedure();
             }
         })
     );
@@ -77,7 +76,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.loadConfiguration', () => {
             if(iniData) {
-                vscode.window.setStatusBarMessage('Todo be implemented...');
+                iniData.loadConfiguration();
             }
         })
     );
@@ -86,13 +85,12 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.clearConfiguration', () => {
             if(iniData) {
-                iniData.clearAllData();
-                vscode.window.setStatusBarMessage('Configuration reset');
+                iniData.clearAllData(true);
             }
         })
     );
 
-
+    vscode.window.setStatusBarMessage('vscode-documents-scripting is active');
 }
 
 
@@ -234,7 +232,8 @@ async function switchOperation(sdsConnection: SDSConnection, operation: string, 
 
 
 
-
+// get script names from server
+// todo new function get script names from folder
 async function getScriptNames(sdsConnection: SDSConnection): Promise<string[]> {
     return new Promise<string[]>((resolve, reject) => {
         sdsConnection.callClassOperation("PortalScript.getScriptNames", []).then((scriptNames) => {
@@ -388,8 +387,7 @@ async function doLogin(sdsSocket: Socket): Promise<SDSConnection> {
             if('admin' !== iniData.user) {
                 username += "." + iniData.principal;
             }
-            let password = iniData.hash? iniData.hash: config.PASSWORD;
-            return sdsConnection.changeUser(username,  password);
+            return sdsConnection.changeUser(username, iniData.hash? iniData.hash: '');
 
         }).then(userId => {
             console.log('changeUser successful');
