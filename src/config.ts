@@ -330,6 +330,7 @@ export class IniData {
     }
 
 
+    // todo load current file
     async loadConfiguration(): Promise<void> {
         return new Promise<void>((resolve, reject) => {
             vscode.window.showInputBox({
@@ -398,8 +399,11 @@ export class IniData {
                                 this.localpath = line[1];
                             }
                             break;
+                        case '':
+                            console.log('empty line');
+                            break;
                         default:
-                            console.log('unknown entry ' + line[1]);
+                            console.log('unknown entry ' + line[0]);
                     }
                 }
             }
