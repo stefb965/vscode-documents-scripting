@@ -1,13 +1,16 @@
 'use strict';
 
 import * as fs from 'fs';
-import { parse, ParsedPath, sep, dirname } from 'path';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { connect, Socket } from 'net';
 import * as reduce from 'reduce-for-promises';
 import { SDSConnection, Hash, crypt_md5 } from 'node-sds';
 import * as tsc from 'typescript-compiler';
 import * as config from './config';
+
+
+type script = {name, souceCode};
 
 
 const SDS_TIMEOUT: number = 60 * 1000;
@@ -43,6 +46,13 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.downloadAllScripts', () => {
             connectAndCallOperation("downloadAllScripts");
+        })
+    );
+
+    // upload all
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.uploadAllScripts', () => {
+            connectAndCallOperation("uploadAllScripts");
         })
     );
 
@@ -136,6 +146,23 @@ function onDidSaveScript(textDocument: vscode.TextDocument) {
 
 
 
+async function askForUploadPath(): Promise<string> {
+    console.log('askForUploadPath');
+    let activePath = iniData.getActivePath();
+    return new Promise<string>((resolve, reject) => {
+        vscode.window.showInputBox({
+            prompt: 'Please enter the upload path',
+            value: activePath,
+            ignoreFocusOut: true,
+        }).then((_path) => {
+            if(_path) {
+                resolve(_path);
+            } else {
+                reject();
+            }
+        });
+    });
+}
 
 
 
@@ -203,11 +230,11 @@ function connectAndCallOperation(operation: string, textDocument?: vscode.TextDo
 async function switchOperation(sdsConnection: SDSConnection, operation: string,  textDocument?: vscode.TextDocument): Promise<void> {
 
     if(OPERATION_UPLOAD === operation) {
-        return uploadScript(sdsConnection, textDocument);
+        return uploadActiveScript(sdsConnection, textDocument);
     }
     else if("downloadAllScripts" === operation) {
         return iniData.ensureDownloadPath().then(() => {
-            return getScriptNames(sdsConnection).then((scriptNames) => {
+            return getScriptNamesFromServer(sdsConnection).then((scriptNames) => {
                 return reduce(scriptNames, function(numscripts, name) {
                     return downloadScript(sdsConnection, name).then(() => {
                         return numscripts + 1;
@@ -220,6 +247,27 @@ async function switchOperation(sdsConnection: SDSConnection, operation: string, 
     }
     else if("runScript" === operation) {
         return runScript(sdsConnection);
+    }
+    else if("uploadAllScripts" === operation) {
+        return new Promise<void>((resolve, reject) => {
+            askForUploadPath().then((_path) => {
+                return getScriptsFromFolder(_path).then((scripts) => {
+                    console.log('scripts: ' + scripts.length);
+                    //console.log('scripts[0].souceCode: ' + scripts[0].souceCode);
+
+                    return reduce(scripts, function(numscripts, _script) {
+                        return uploadScript(sdsConnection, _script.name, _script.souceCode).then(() => {
+                            return numscripts + 1;
+                        });
+                    }, 0).then((numscripts) => {
+                        vscode.window.setStatusBarMessage("uploaded " + numscripts + " scripts");
+                        resolve();
+                    });
+                });
+            }).catch((reason) => {
+                reject("uploadAllScripts failed:" + reason);
+            });
+        });
     }
     // else if...
     else {
@@ -234,12 +282,49 @@ async function switchOperation(sdsConnection: SDSConnection, operation: string, 
 
 // get script names from server
 // todo new function get script names from folder
-async function getScriptNames(sdsConnection: SDSConnection): Promise<string[]> {
+async function getScriptNamesFromServer(sdsConnection: SDSConnection): Promise<string[]> {
     return new Promise<string[]>((resolve, reject) => {
         sdsConnection.callClassOperation("PortalScript.getScriptNames", []).then((scriptNames) => {
             resolve(scriptNames);
         }).catch((reason) => {
             reject("getScriptNames() failed: " + reason);
+        });
+    });
+}
+
+
+
+
+async function getScriptsFromFolder(_path: string): Promise<script[]> {
+    return new Promise<script[]>((resolve, reject) => {
+    
+        let scripts : script[] = [];
+
+        fs.readdir(_path, function (err, files) {
+            if (err) {
+                console.log('err in readdir: ' + err);
+                reject();
+            }
+
+            files.map(function (file) {
+                return path.join(_path, file);
+            }).filter(function (file) {
+                return fs.statSync(file).isFile();
+            }).forEach(function (file) {
+                if('.js' === path.extname(file)) {
+                    try {
+                        let sc = fs.readFileSync(file, 'utf8');
+                        let _name = path.basename(file);
+                        scripts.push({name: _name, souceCode: sc});
+                        //console.log('script added: ' + _name);
+                    } catch(err) {
+                        console.log('catch in readFileSync: ' + err);
+                        reject();
+                    }
+                }
+            });
+
+            resolve(scripts);
         });
     });
 }
@@ -286,20 +371,19 @@ async function downloadScript(sdsConnection: SDSConnection, scriptName: string):
 }
 
 
-function getShortName(path: string): string{
-    let NameStart = path.lastIndexOf("\\") + 1;
-    let NameLength = path.lastIndexOf(".") - NameStart;
-    let shortName = path.substr(NameStart, NameLength);
-    return shortName;
-}
 
-async function uploadScript(sdsConnection: SDSConnection, textDocument?: vscode.TextDocument): Promise<void> {
+
+
+
+
+async function uploadActiveScript(sdsConnection: SDSConnection, textDocument?: vscode.TextDocument): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         let doc;
+
+        // get document
         if(textDocument) {
             doc = textDocument;
-        }
-        else {
+        } else {
             let editor = vscode.window.activeTextEditor;
             if (!editor) {
                 reject(OPERATION_UPLOAD + '(): editor undefined');
@@ -312,14 +396,15 @@ async function uploadScript(sdsConnection: SDSConnection, textDocument?: vscode.
 
 
 
-        let shortName = getShortName(doc.fileName);
+        let shortName = '';
         let scriptSource = '';
 
-
-        if(doc.fileName.endsWith(".js")) {
+        if(doc.fileName.endsWith('.js')) {
+            shortName = path.basename(doc.fileName, '.js');
             scriptSource = doc.getText();
-        }
-        else if(doc.fileName.endsWith(".ts")) {
+
+        } else if(doc.fileName.endsWith('.ts')) {
+            shortName = path.basename(doc.fileName, '.ts');
             let tsname:string = doc.fileName;
             let jsname:string = tsname.substr(0, tsname.length - 3) + ".js";
             //let tscargs = ['--module', 'commonjs', '-t', 'ES6'];
@@ -327,21 +412,31 @@ async function uploadScript(sdsConnection: SDSConnection, textDocument?: vscode.
             let retval = tsc.compile([doc.fileName], tscargs, null, function(e) { console.log(e); });
             scriptSource = retval.sources[jsname];
             console.log("scriptSource: " + scriptSource);
-        }
-        else {
+
+        } else {
             reject(OPERATION_UPLOAD + '(): only javascript or typescript files');
         }
-
     
-
-        sdsConnection.callClassOperation("PortalScript.uploadScript", [shortName, scriptSource], true).then((value) => {
+        uploadScript(sdsConnection, shortName, scriptSource).then((value) => {
             vscode.window.setStatusBarMessage('uploaded: ' + shortName);
             resolve();
         }).catch((reason) => {
-            reject(OPERATION_UPLOAD + '(): sdsConnection.pdcCallOperation failed: ' + reason);
+            reject(reason);
         });
     });
 }
+
+
+async function uploadScript(sdsConnection: SDSConnection, shortName: string, scriptSource: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+        sdsConnection.callClassOperation("PortalScript.uploadScript", [shortName, scriptSource], true).then((value) => {
+            resolve();
+        }).catch((reason) => {
+            reject(OPERATION_UPLOAD + '(): sdsConnection.callClassOperation failed: ' + reason);
+        });
+    });
+}
+
 
 
 async function runScript(sdsConnection: SDSConnection): Promise<void> {
@@ -387,7 +482,18 @@ async function doLogin(sdsSocket: Socket): Promise<SDSConnection> {
             if('admin' !== iniData.user) {
                 username += "." + iniData.principal;
             }
-            return sdsConnection.changeUser(username, iniData.hash? iniData.hash: '');
+
+            type JanusPassword = '' | Hash;
+            // function getJanusPassword(val: string): JanusPassword {
+            //     if (val.length > 0)
+            //         return crypt_md5(val, 'saltysalty');
+            //     else
+            //         return '';
+            // };
+
+            // let pw: JanusPassword = getJanusPassword("bla"); //iniData.hash? iniData.hash: '';
+            let pw: JanusPassword = iniData.hash? iniData.hash: '';
+            return sdsConnection.changeUser(username, pw);
 
         }).then(userId => {
             console.log('changeUser successful');

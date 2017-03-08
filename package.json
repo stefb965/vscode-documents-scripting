@@ -1,6 +1,6 @@
 {
   "name": "vscode-documents-scripting",
-  "displayName": "VS Code extension for portal scripting",
+  "displayName": "VS Code extension for documents scripting",
   "description": "",
   "version": "0.0.1",
   "publisher": "heller",
@@ -12,6 +12,7 @@
   ],
   "activationEvents": [
     "onCommand:extension.downloadAllScripts",
+    "onCommand:extension.uploadAllScripts",
     "onCommand:extension.uploadScript",
     "onCommand:extension.runScript",
     "onCommand:extension.saveConfiguration",
@@ -23,6 +24,10 @@
       {
         "command": "extension.downloadAllScripts",
         "title": "Documents Scripting: Download All"
+      },
+      {
+        "command": "extension.uploadAllScripts",
+        "title": "Documents Scripting: Upload All"
       },
       {
         "command": "extension.uploadScript",
@@ -48,7 +53,7 @@
   },
   "scripts": {
     "vscode:prepublish": "tsc -p ./",
-    "compile": "tsc -watch -p ./",
+    "compile": "tsc -p ./",
     "postinstall": "node ./node_modules/vscode/bin/install",
     "test": "node ./node_modules/vscode/bin/test",
     "package": "vsce package",
