@@ -2,8 +2,8 @@
   "name": "vscode-documents-scripting",
   "displayName": "VS Code extension for documents scripting",
   "description": "",
-  "version": "0.0.1",
-  "publisher": "heller",
+  "version": "0.0.2",
+  "publisher": "otris",
   "engines": {
     "vscode": "^1.5.0"
   },
