@@ -49,6 +49,13 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    // download script
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.downloadScript', () => {
+            connectAndCallOperation("downloadScript");
+        })
+    );
+
     // upload all
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.uploadAllScripts', () => {
@@ -106,7 +113,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 export function deactivate() {
-    console.log("The extension is deactivated");
+    console.log('The extension is deactivated');
 }
 
 
@@ -164,6 +171,24 @@ async function askForUploadPath(): Promise<string> {
     });
 }
 
+async function askForScriptName(): Promise<string> {
+    console.log('askForUploadPath');
+    let activePath = iniData.getActivePath();
+    return new Promise<string>((resolve, reject) => {
+        vscode.window.showInputBox({
+            prompt: 'Please enter the script name or path',
+            //value: activePath,
+            ignoreFocusOut: true,
+        }).then((_scriptname) => {
+            if(_scriptname) {
+                let scriptname = path.basename(_scriptname, '.js');
+                resolve(scriptname);
+            } else {
+                reject();
+            }
+        });
+    });
+}
 
 
 
@@ -174,7 +199,7 @@ function connectAndCallOperation(operation: string, textDocument?: vscode.TextDo
     }
 
     iniData.ensureLoginData().then(() => {
-        console.log("ensureLoginData successful");
+        console.log('ensureLoginData successful');
 
         // create socket
         let sdsSocket = connect(iniData.port, iniData.server);
@@ -184,7 +209,7 @@ function connectAndCallOperation(operation: string, textDocument?: vscode.TextDo
         // actual function (callOperation) is in the callback function "socket.on(connect)"
 
         sdsSocket.on('connect', () => {
-            console.log("callback socket.on(connect)...");
+            console.log('callback socket.on(connect)...');
 
             doLogin(sdsSocket).then((sdsConnection) => {
                 // switchOperation() and closeConnection() are both called inside doLogin.then()
@@ -206,23 +231,23 @@ function connectAndCallOperation(operation: string, textDocument?: vscode.TextDo
         });
 
         sdsSocket.on('close', (hadError: boolean) => {
-            console.log("callback socket.on(close)...");
+            console.log('callback socket.on(close)...');
             if (hadError) {
-                console.log("remote closed SDS connection due to error");
+                console.log('remote closed SDS connection due to error');
             }
             else {
-                console.log("remote closed SDS connection");
+                console.log('remote closed SDS connection');
             }
         });
 
         sdsSocket.on('error', (err: any) => {
-            console.log("callback socket.on(error)...");
-            console.log("failed to connect to host: " + iniData.server + " and port: " + iniData.port);
+            console.log('callback socket.on(error)...');
+            console.log('failed to connect to host: ' + iniData.server + ' and port: ' + iniData.port);
             console.log(err);
         });
 
     }).catch((reason) => {
-        console.log("ensureLoginData failed: " + reason);
+        console.log('ensureLoginData failed: ' + reason);
     });
 }
 
@@ -230,9 +255,10 @@ function connectAndCallOperation(operation: string, textDocument?: vscode.TextDo
 async function switchOperation(sdsConnection: SDSConnection, operation: string,  textDocument?: vscode.TextDocument): Promise<void> {
 
     if(OPERATION_UPLOAD === operation) {
+        // todo move vscode.window.setStatusBarMessage here
         return uploadActiveScript(sdsConnection, textDocument);
     }
-    else if("downloadAllScripts" === operation) {
+    else if('downloadAllScripts' === operation) {
         return iniData.ensureDownloadPath().then(() => {
             return getScriptNamesFromServer(sdsConnection).then((scriptNames) => {
                 return reduce(scriptNames, function(numscripts, name) {
@@ -240,15 +266,30 @@ async function switchOperation(sdsConnection: SDSConnection, operation: string, 
                         return numscripts + 1;
                     });
                 }, 0).then((numscripts) => {
-                    vscode.window.setStatusBarMessage("downloaded " + numscripts + " scripts");
+                    vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
                 });
             });
         });
     }
-    else if("runScript" === operation) {
+    else if('downloadScript' === operation) {
+        return new Promise<void>((resolve, reject) => {
+            askForScriptName().then((scriptname) => {
+                iniData.ensureDownloadPath().then(() => {
+                    downloadScript(sdsConnection, scriptname).then(() => {
+                        vscode.window.setStatusBarMessage('downloaded: ' + scriptname);
+                        resolve();
+                    }).catch((reason) => {
+                        reject(reason);
+                    });
+                });
+            });
+        });
+    }
+    else if('runScript' === operation) {
+        // todo move vscode.window.setStatusBarMessage here
         return runScript(sdsConnection);
     }
-    else if("uploadAllScripts" === operation) {
+    else if('uploadAllScripts' === operation) {
         return new Promise<void>((resolve, reject) => {
             askForUploadPath().then((_path) => {
                 return getScriptsFromFolder(_path).then((scripts) => {
@@ -260,19 +301,19 @@ async function switchOperation(sdsConnection: SDSConnection, operation: string, 
                             return numscripts + 1;
                         });
                     }, 0).then((numscripts) => {
-                        vscode.window.setStatusBarMessage("uploaded " + numscripts + " scripts");
+                        vscode.window.setStatusBarMessage('uploaded ' + numscripts + ' scripts');
                         resolve();
                     });
                 });
             }).catch((reason) => {
-                reject("uploadAllScripts failed:" + reason);
+                reject('uploadAllScripts failed:' + reason);
             });
         });
     }
     // else if...
     else {
         return new Promise<void>((resolve, reject) => {
-            reject("switchOperation: unknown operation: " + operation);
+            reject('switchOperation: unknown operation: ' + operation);
         });
     }
 }
@@ -314,7 +355,7 @@ async function getScriptsFromFolder(_path: string): Promise<script[]> {
                 if('.js' === path.extname(file)) {
                     try {
                         let sc = fs.readFileSync(file, 'utf8');
-                        let _name = path.basename(file);
+                        let _name = path.basename(file, '.js');
                         scripts.push({name: _name, souceCode: sc});
                         //console.log('script added: ' + _name);
                     } catch(err) {
@@ -336,34 +377,35 @@ async function downloadScript(sdsConnection: SDSConnection, scriptName: string):
         sdsConnection.callClassOperation("PortalScript.downloadScript", [scriptName]).then((scriptSource) => {
             if('' === iniData.localpath) {
                 reject("localpath missing");
-            }
-            let scriptPath = iniData.localpath + "\\" + scriptName + ".js";
-            fs.writeFile(scriptPath, scriptSource[0], {encoding: 'utf8'}, function(error) {
-                if(error) {
-                    if(error.code === "ENOENT") {
-                        fs.mkdir(iniData.localpath, function(error) {
-                            if(error) {
-                                reject(error);
-                            } else {
-                                console.log("created path: " + iniData.localpath);
-                                fs.writeFile(scriptPath, scriptSource[0], {encoding: 'utf8'}, function(error) {
-                                    if(error) {
-                                        reject(error);
-                                    } else {
-                                        console.log("downloaded script: " +  scriptPath);
-                                        resolve();
-                                    }
-                                });
-                            }
-                        });
+            } else {
+                let scriptPath = iniData.localpath + "\\" + scriptName + ".js";
+                fs.writeFile(scriptPath, scriptSource[0], {encoding: 'utf8'}, function(error) {
+                    if(error) {
+                        if(error.code === "ENOENT") {
+                            fs.mkdir(iniData.localpath, function(error) {
+                                if(error) {
+                                    reject(error);
+                                } else {
+                                    console.log("created path: " + iniData.localpath);
+                                    fs.writeFile(scriptPath, scriptSource[0], {encoding: 'utf8'}, function(error) {
+                                        if(error) {
+                                            reject(error);
+                                        } else {
+                                            console.log("downloaded script: " +  scriptPath);
+                                            resolve();
+                                        }
+                                    });
+                                }
+                            });
+                        } else {
+                            reject(error);
+                        }
                     } else {
-                        reject(error);
+                        console.log("downloaded script: " +  scriptPath);
+                        resolve();
                     }
-                } else {
-                    console.log("downloaded script: " +  scriptPath);
-                    resolve();
-                }
-            });
+                });
+            }
         }).catch((reason) => {
             reject("downloadScript(" + scriptName + ") failed: " + reason);
         });
@@ -430,6 +472,7 @@ async function uploadActiveScript(sdsConnection: SDSConnection, textDocument?: v
 async function uploadScript(sdsConnection: SDSConnection, shortName: string, scriptSource: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         sdsConnection.callClassOperation("PortalScript.uploadScript", [shortName, scriptSource], true).then((value) => {
+            console.log('uploaded shortName: ', shortName);
             resolve();
         }).catch((reason) => {
             reject(OPERATION_UPLOAD + '(): sdsConnection.callClassOperation failed: ' + reason);
@@ -483,6 +526,7 @@ async function doLogin(sdsSocket: Socket): Promise<SDSConnection> {
                 username += "." + iniData.principal;
             }
 
+            // todo insert in SDS
             type JanusPassword = '' | Hash;
             // function getJanusPassword(val: string): JanusPassword {
             //     if (val.length > 0)

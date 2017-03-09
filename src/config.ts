@@ -16,7 +16,6 @@ const QP_SAVE_CONF: string = 'Save configuration to downloadpath (as default.ini
 const QP_SAVE_CONF_AS: string = 'Save configuration as';
 const QP_MAYBE_LATER: string = 'Maybe later';
 
-const INPUT_CANCELLED: string = 'Input procedure cancelled';
 
 
 // todo new file 'tools.ts'
@@ -300,7 +299,8 @@ export class IniData {
                     }
                     resolve();
                 } else {
-                    reject(INPUT_CANCELLED);
+                    reject();
+                    vscode.window.showErrorMessage('Input login data cancelled: command cannot be executed');
                 }
             });
         });
@@ -323,7 +323,8 @@ export class IniData {
                     resolve();
                 } else {
                     //console.log('askForDownloadPath() failed: ' + reason);
-                    reject(INPUT_CANCELLED);
+                    reject();
+                    vscode.window.showErrorMessage('Input download path cancelled: command cannot be executed');
                 }
             });
         });
