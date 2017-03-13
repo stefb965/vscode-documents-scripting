@@ -44,8 +44,12 @@ export function activate(context: vscode.ExtensionContext) {
 
     // download all
     context.subscriptions.push(
-        vscode.commands.registerCommand('extension.downloadAllScripts', () => {
-            connectAndCallOperation("downloadAllScripts");
+        vscode.commands.registerCommand('extension.downloadAllScripts', (param) => {
+            if(param) {
+                connectAndCallOperation("downloadAllScripts", undefined, param._fsPath);
+            } else {
+                connectAndCallOperation("downloadAllScripts");
+            }
         })
     );
 
@@ -58,8 +62,12 @@ export function activate(context: vscode.ExtensionContext) {
 
     // upload all
     context.subscriptions.push(
-        vscode.commands.registerCommand('extension.uploadAllScripts', () => {
-            connectAndCallOperation("uploadAllScripts");
+        vscode.commands.registerCommand('extension.uploadAllScripts', (param) => {
+            if(param) {
+                connectAndCallOperation("uploadAllScripts", undefined, param._fsPath);
+            } else {
+                connectAndCallOperation("uploadAllScripts");
+            }
         })
     );
 
@@ -153,46 +161,62 @@ function onDidSaveScript(textDocument: vscode.TextDocument) {
 
 
 
-async function askForUploadPath(): Promise<string> {
-    console.log('askForUploadPath');
-    let activePath = iniData.getActivePath();
+async function ensureUploadPath(uploadpath?: string): Promise<string> {
+    console.log('ensureUploadPath');
     return new Promise<string>((resolve, reject) => {
-        vscode.window.showInputBox({
-            prompt: 'Please enter the upload path',
-            value: activePath,
-            ignoreFocusOut: true,
-        }).then((_path) => {
-            if(_path) {
-                resolve(_path);
-            } else {
-                reject();
+        if(uploadpath) {
+            let _path = uploadpath;
+            if(path.extname(uploadpath)) {
+                _path = path.dirname(uploadpath);
             }
-        });
+            resolve(_path);
+        } else {
+            let activePath = iniData.getActivePath();
+            vscode.window.showInputBox({
+                prompt: 'Please enter the upload path',
+                value: activePath,
+                ignoreFocusOut: true,
+            }).then((_path) => {
+                if(_path) {
+                    resolve(_path);
+                } else {
+                    reject();
+                }
+            });
+        }
     });
 }
 
-async function askForScriptName(): Promise<string> {
+async function ensureScriptName(uploadscript?: string): Promise<string> {
     console.log('askForUploadPath');
-    let activePath = iniData.getActivePath();
     return new Promise<string>((resolve, reject) => {
-        vscode.window.showInputBox({
-            prompt: 'Please enter the script name or path',
-            //value: activePath,
-            ignoreFocusOut: true,
-        }).then((_scriptname) => {
-            if(_scriptname) {
-                let scriptname = path.basename(_scriptname, '.js');
-                resolve(scriptname);
-            } else {
-                reject();
+        if(uploadscript) {
+            let _path = uploadscript;
+            if(path.extname(uploadscript)) {
+                _path = path.dirname(uploadscript);
             }
-        });
+            resolve(_path);
+        } else {
+            let activePath = iniData.getActivePath();
+            vscode.window.showInputBox({
+                prompt: 'Please enter the script name or path',
+                //value: activePath,
+                ignoreFocusOut: true,
+            }).then((_scriptname) => {
+                if(_scriptname) {
+                    let scriptname = path.basename(_scriptname, '.js');
+                    resolve(scriptname);
+                } else {
+                    reject();
+                }
+            });
+        }
     });
 }
 
 
 
-function connectAndCallOperation(operation: string, textDocument?: vscode.TextDocument) {
+function connectAndCallOperation(operation: string, textDocument?: vscode.TextDocument, parampath?: string) {
 
     if(!iniData) {
         return;
@@ -216,7 +240,7 @@ function connectAndCallOperation(operation: string, textDocument?: vscode.TextDo
                 // because both need parameter sdsConnection
                 
                 // call switchOperation() and then close the connection in any case
-                switchOperation(sdsConnection, operation, textDocument).then(() => {
+                switchOperation(sdsConnection, operation, textDocument, parampath).then(() => {
                     closeConnection(sdsConnection).catch((reason) => {
                         console.log(reason);
                     });
@@ -252,35 +276,46 @@ function connectAndCallOperation(operation: string, textDocument?: vscode.TextDo
 }
 
 
-async function switchOperation(sdsConnection: SDSConnection, operation: string,  textDocument?: vscode.TextDocument): Promise<void> {
+async function switchOperation(sdsConnection: SDSConnection,
+                               operation: string,
+                               textDocument?: vscode.TextDocument,
+                               parampath?: string,
+                               paramscript?: string): Promise<void> {
 
     if(OPERATION_UPLOAD === operation) {
         // todo move vscode.window.setStatusBarMessage here
         return uploadActiveScript(sdsConnection, textDocument);
     }
     else if('downloadAllScripts' === operation) {
-        return iniData.ensureDownloadPath().then(() => {
-            return getScriptNamesFromServer(sdsConnection).then((scriptNames) => {
-                return reduce(scriptNames, function(numscripts, name) {
-                    return downloadScript(sdsConnection, name).then(() => {
-                        return numscripts + 1;
+        return new Promise<void>((resolve, reject) => {
+            iniData.askForDownloadPath(parampath).then((_path) => {
+                if(_path) {
+                    return getScriptNamesFromServer(sdsConnection).then((scriptNames) => {
+                        return reduce(scriptNames, function(numscripts, name) {
+                            return downloadScript(sdsConnection, name, _path).then(() => {
+                                return numscripts + 1;
+                            });
+                        }, 0).then((numscripts) => {
+                            vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
+                            resolve();
+                        });
                     });
-                }, 0).then((numscripts) => {
-                    vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
-                });
+                }
             });
         });
     }
     else if('downloadScript' === operation) {
         return new Promise<void>((resolve, reject) => {
-            askForScriptName().then((scriptname) => {
-                iniData.ensureDownloadPath().then(() => {
-                    downloadScript(sdsConnection, scriptname).then(() => {
-                        vscode.window.setStatusBarMessage('downloaded: ' + scriptname);
-                        resolve();
-                    }).catch((reason) => {
-                        reject(reason);
-                    });
+            ensureScriptName().then((scriptname) => {
+                iniData.askForDownloadPath().then((_path) => {
+                    if(_path) {
+                        downloadScript(sdsConnection, scriptname, _path).then(() => {
+                            vscode.window.setStatusBarMessage('downloaded: ' + scriptname);
+                            resolve();
+                        }).catch((reason) => {
+                            reject(reason);
+                        });
+                    }
                 });
             });
         });
@@ -291,8 +326,8 @@ async function switchOperation(sdsConnection: SDSConnection, operation: string, 
     }
     else if('uploadAllScripts' === operation) {
         return new Promise<void>((resolve, reject) => {
-            askForUploadPath().then((_path) => {
-                return getScriptsFromFolder(_path).then((scripts) => {
+            ensureUploadPath(parampath).then((folder) => {
+                return getScriptsFromFolder(folder).then((scripts) => {
                     console.log('scripts: ' + scripts.length);
                     //console.log('scripts[0].souceCode: ' + scripts[0].souceCode);
 
@@ -346,6 +381,10 @@ async function getScriptsFromFolder(_path: string): Promise<script[]> {
                 console.log('err in readdir: ' + err);
                 reject();
             }
+            if (!files) {
+                console.log('err in readdir: ' + err);
+                reject();
+            }
 
             files.map(function (file) {
                 return path.join(_path, file);
@@ -372,21 +411,22 @@ async function getScriptsFromFolder(_path: string): Promise<script[]> {
 
 
 
-async function downloadScript(sdsConnection: SDSConnection, scriptName: string): Promise<void> {
+async function downloadScript(sdsConnection: SDSConnection, scriptName: string, parampath: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         sdsConnection.callClassOperation("PortalScript.downloadScript", [scriptName]).then((scriptSource) => {
-            if('' === iniData.localpath) {
-                reject("localpath missing");
+            if('' === parampath) {
+                reject("path missing");
             } else {
-                let scriptPath = iniData.localpath + "\\" + scriptName + ".js";
+                let scriptPath = path.join(parampath, scriptName + ".js");
+                // let scriptPath = parampath + "\\" + scriptName + ".js";
                 fs.writeFile(scriptPath, scriptSource[0], {encoding: 'utf8'}, function(error) {
                     if(error) {
                         if(error.code === "ENOENT") {
-                            fs.mkdir(iniData.localpath, function(error) {
+                            fs.mkdir(parampath, function(error) {
                                 if(error) {
                                     reject(error);
                                 } else {
-                                    console.log("created path: " + iniData.localpath);
+                                    console.log("created path: " + parampath);
                                     fs.writeFile(scriptPath, scriptSource[0], {encoding: 'utf8'}, function(error) {
                                         if(error) {
                                             reject(error);

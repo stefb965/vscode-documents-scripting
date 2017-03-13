@@ -2,8 +2,12 @@
   "name": "vscode-documents-scripting",
   "displayName": "VS Code extension for documents scripting",
   "description": "",
-  "version": "0.0.3",
-  "publisher": "otris",
+  "version": "0.0.4",
+  "publisher": "otris-software",
+  "author": {
+      "name": "otris software",
+      "email": "heller@otris.de"
+  },
   "engines": {
     "vscode": "^1.5.0"
   },
@@ -24,23 +28,23 @@
     "commands": [
       {
         "command": "extension.downloadAllScripts",
-        "title": "Documents Scripting: Download All"
+        "title": "Documents: Download Scripts To Folder"
       },
       {
         "command": "extension.downloadScript",
-        "title": "Documents Scripting: Download Script"
+        "title": "Documents: Download Script"
       },
       {
         "command": "extension.uploadAllScripts",
-        "title": "Documents Scripting: Upload All"
+        "title": "Documents: Upload Scripts From Folder"
       },
       {
         "command": "extension.uploadScript",
-        "title": "Documents Scripting: Upload Current"
+        "title": "Documents: Upload Current Script"
       },
       {
         "command": "extension.runScript",
-        "title": "Documents Scripting: Run Current"
+        "title": "Documents: Run Current Script"
       },
       {
         "command": "extension.saveConfiguration",
@@ -54,7 +58,17 @@
         "command": "extension.clearConfiguration",
         "title": "Documents Configuration: Clear"
       }
-    ]
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "extension.uploadAllScripts"
+        },
+        {
+          "command": "extension.downloadAllScripts"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "tsc -p ./",

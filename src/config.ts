@@ -2,51 +2,37 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
-import { parse, dirname, extname, sep } from 'path';
+import * as path from 'path';
 import { Hash, crypt_md5 } from 'node-sds';
 
 
 const INI_DEFAULT_NAME: string = 'default.ini';
 const INI_CONN_PART: string = '[Connection]';
-const INI_PATH: string = '[INIPATH]';
 const CRYPTMD5_SALT: string = 'o3';
 
 
-const QP_SAVE_CONF: string = 'Save configuration to downloadpath (as default.ini)?';
-const QP_SAVE_CONF_AS: string = 'Save configuration as';
+const QP_SAVE_CONF_AS: string = 'Save configuration as root path';
 const QP_MAYBE_LATER: string = 'Maybe later';
 
 
 
-// todo new file 'tools.ts'
-async function writeFileMkdir (_path, data) {
-    let file: string = '';
-    let path: string = '';
-
-    // does _path contain the filename?
-    if('' === extname(_path)) {
-        // no extension: _path is only the path
-        file = _path;
-        if(!file.endsWith(sep)) {
-            file += sep;
-        }
-        file += INI_DEFAULT_NAME;
-        path = _path;
-    } else {
-        // extension in _path: _path contains the whole filename
-        file = _path;
-        path = dirname(file);
+// todo new file 'utils.ts'
+async function writeFileMkdir (parampath, data) {
+    let _path: string = parampath;
+    if(path.extname(parampath)) {
+        _path = path.dirname(parampath);
     }
+    let file: string = path.join(_path, INI_DEFAULT_NAME);
 
     return new Promise<void>((resolve, reject) => {
         fs.writeFile(file, data, {encoding: 'utf8'}, function(error) {
             if(error) {
                 if(error.code === 'ENOENT') {
-                    fs.mkdir(path, function(error) {
+                    fs.mkdir(_path, function(error) {
                         if(error) {
                             reject(error);
                         } else {
-                            console.log('created path: ' + path);
+                            console.log('created path: ' + _path);
                             fs.writeFile(file, data, {encoding: 'utf8'}, function(error) {
                                 if(error) {
                                     reject(error);
@@ -88,11 +74,6 @@ export class IniData {
     public user: string;
     public hash: Hash = undefined;
 
-    // path for up- and download all
-    public localpath: string = '';
-
-    public iniFile:string   = '';
-
     public oc: vscode.OutputChannel;
 
 
@@ -107,7 +88,6 @@ export class IniData {
         this.principal = '';
         this.user = '';
         this.hash = undefined;
-        this.localpath = '';
         if(output) {
             vscode.window.setStatusBarMessage('Reset configuration');
         }
@@ -120,13 +100,6 @@ export class IniData {
         return true;
     }
 
-    public checkDownloadPath(): boolean {
-        if('' === this.localpath) {
-            return false;
-        }
-        return true;
-    }
-
     async ensureLoginData(): Promise<void> {
         console.log('IniData.ensureLoginData');
         return new Promise<void>((resolve, reject) => {
@@ -134,7 +107,7 @@ export class IniData {
             if(this.checkLoginData()) {
                 resolve();
 
-            } else if(this.loadIniFile(this.getActivePath()) && this.checkLoginData()) {
+            } else if(this.loadIniFile() && this.checkLoginData()) {
                 resolve();
 
             } else { // loginData not set and no usable configuration file found
@@ -151,25 +124,6 @@ export class IniData {
         });
     }
 
-    async ensureDownloadPath(): Promise<void> {
-        console.log('IniData.ensureDownloadPath');
-        return new Promise<void>((resolve, reject) => {
-            if(this.checkDownloadPath()) {
-                resolve();
-
-            } else if(this.loadIniFile(this.getActivePath()) && this.checkDownloadPath()) {
-                resolve();
-
-            } else { // no localpath set and no usable configuration file found
-                this.askForDownloadPath().then(() => {
-                    resolve();
-                }).catch((reason) => {
-                    reject(reason);
-                });
-            }
-        });
-    }
-
 
     async inputProcedure(): Promise<void> {
         return new Promise<void>((resolve, reject) => {
@@ -177,14 +131,8 @@ export class IniData {
             // input login data
             this.askForLoginData().then(() => {
 
-                // input download path
-                return this.askForDownloadPath();
-
-            }).then(() => {
-
                 // save?
                 return vscode.window.showQuickPick([
-                    QP_SAVE_CONF,
                     QP_SAVE_CONF_AS,
                     QP_MAYBE_LATER
                 ]);
@@ -194,24 +142,24 @@ export class IniData {
                 // because the server call can be executed even if
                 // the configuration couldn't be saved
                 if(decision) { 
-                    let defaultPath: string = this.localpath + sep + INI_DEFAULT_NAME;
-                    if(QP_SAVE_CONF === decision) {
-                        this.writeIniFile(defaultPath).then(() => {
-                            vscode.window.setStatusBarMessage('Configuration saved');
-                            resolve();
-                        }).catch((reason) => {
-                            this.oc.append('Error: cannot save configuration: ' + reason);
-                            this.oc.show();
-                            resolve();
-                        });
-                    } else if (QP_SAVE_CONF_AS === decision) {
+                    
+                    // try rootPath, if there's no rootPath, save to activePath
+                    // if there's no activePath, user has to insert the path
+                    let rootPath = vscode.workspace? vscode.workspace.rootPath:'';
+                    let activePath = this.getActivePath();
+                    let defaultPath: string = rootPath? rootPath: activePath;
+                    let showPath = '';
+                    if(defaultPath) {
+                        showPath = path.join(defaultPath, INI_DEFAULT_NAME);
+                    }
+                    if (QP_SAVE_CONF_AS === decision) {
                         vscode.window.showInputBox({
-                            prompt: 'Please enter file or path',
-                            value: defaultPath,
+                            prompt: 'Please enter the path',
+                            value: showPath,
                             ignoreFocusOut: true,
-                        }).then((path) => {
-                            if(path) {
-                                this.writeIniFile(path).then(() => {
+                        }).then((_path) => {
+                            if(_path) {
+                                this.writeIniFile(_path).then(() => {
                                     vscode.window.setStatusBarMessage('Configuration saved');
                                     resolve();
                                 }).catch((reason) => {
@@ -309,24 +257,33 @@ export class IniData {
 
 
 
-    async askForDownloadPath(): Promise<void> {
+    async askForDownloadPath(parampath?: string): Promise<string> {
         console.log('IniData.askForDownloadPath');
-        let activePath = this.getActivePath();
-        return new Promise<void>((resolve, reject) => {
-            vscode.window.showInputBox({
-                prompt: 'Please enter the download path',
-                value: activePath,
-                ignoreFocusOut: true,
-            }).then((localpath) => {
-                if(localpath) {
-                    this.localpath = localpath;
-                    resolve();
-                } else {
-                    //console.log('askForDownloadPath() failed: ' + reason);
-                    reject();
-                    vscode.window.showErrorMessage('Input download path cancelled: command cannot be executed');
+
+        return new Promise<string>((resolve, reject) => {
+            if(parampath) {
+                let _path = parampath;
+                if(path.extname(parampath)) {
+                    _path = path.dirname(parampath);
                 }
-            });
+                resolve(_path);
+            } else {
+                let activePath = this.getActivePath();
+                let rootPath = vscode.workspace? vscode.workspace.rootPath:'';
+                let defaultPath: string = activePath? activePath: rootPath;
+                vscode.window.showInputBox({
+                    prompt: 'Please enter the download path',
+                    value: defaultPath,
+                    ignoreFocusOut: true,
+                }).then((_path) => {
+                    if(_path) {
+                        resolve(_path);
+                    } else {
+                        reject();
+                        vscode.window.showErrorMessage('Input download path cancelled: command cannot be executed');
+                    }
+                });
+            }
         });
     }
 
@@ -349,14 +306,20 @@ export class IniData {
     }
 
 
-    public loadIniFile(fileOrpath): boolean {
+    public loadIniFile(parampath?: string): boolean {
         console.log('IniData.loadIniFile');
-        let file = this.findIniFile(fileOrpath);
-        if(!file) {
-            return false;
-        }
 
-        this.iniFile = file;
+        let file = this.findIniFileInFolder(parampath);
+        if(!file) {
+            let activePath = this.getActivePath();
+            file = this.findIniFileInFolder(activePath);
+            if(!file) {
+                file = this.findIniFileInFolder(vscode.workspace.rootPath);
+                if(!file) {
+                    return false;
+                }
+            }
+        }
 
         let contentBuf = fs.readFileSync(file, 'utf8');
         let contentStr = contentBuf.toString();
@@ -393,13 +356,13 @@ export class IniData {
                                 this.hash = new Hash(line[1]);
                             }
                             break;
-                        case 'localpath':
-                            if(INI_PATH === line[1]) {
-                                this.localpath = dirname(this.iniFile);
-                            } else {
-                                this.localpath = line[1];
-                            }
-                            break;
+                        // case 'localpath':
+                        //     if(INI_PATH === line[1]) {
+                        //         this.localpath = dirname(this.iniFile);
+                        //     } else {
+                        //         this.localpath = line[1];
+                        //     }
+                        //     break;
                         case '':
                             console.log('empty line');
                             break;
@@ -412,7 +375,7 @@ export class IniData {
         return true;
     }
 
-    async writeIniFile(path: string): Promise<void> {
+    async writeIniFile(parampath: string): Promise<void> {
         console.log('IniData.writeIniFile');
         let data = '';
         data += INI_CONN_PART + os.EOL;
@@ -424,8 +387,7 @@ export class IniData {
         if(this.hash) {
             data += 'hash=' + this.hash.value + os.EOL;
         }
-        data += 'localpath=' + INI_PATH + os.EOL;
-        return writeFileMkdir(path, data);
+        return writeFileMkdir(parampath, data);
     }
 
 
@@ -436,7 +398,7 @@ export class IniData {
         let editor = vscode.window.activeTextEditor;
         if (editor && editor.document) {
             let file = editor.document.fileName;
-            const parsedPath = parse(file);
+            const parsedPath = path.parse(file);
             return parsedPath.dir;
         }
 
@@ -444,28 +406,27 @@ export class IniData {
         return vscode.workspace.rootPath;
     }
 
-    public findIniFile(fileOrPath: string): string {
-        console.log('IniData.findIni');
-        if(!fileOrPath) {
-            return null;
+    public findIniFileInFolder(parampath: string): string {
+        console.log('IniData.findIniFile');
+        if(!parampath) {
+            return '';
         }
 
         let ini = '';
-        if('' === extname(fileOrPath)) {
-            ini = fileOrPath;
-            if(!ini.endsWith(sep)) {
-                ini += sep;
-            }
-            ini += INI_DEFAULT_NAME;
+        let ext = path.extname(parampath);
+        if('.ini' === ext) {
+            ini = parampath;
+        } else if('' === ext) {
+            ini = path.join(parampath, INI_DEFAULT_NAME);
         } else {
-            ini = fileOrPath;
+            return '';
         }
 
         try {
             fs.accessSync(ini);
             return ini;
         } catch (e) {
-            return null;
+            return '';
         }
     }
 
