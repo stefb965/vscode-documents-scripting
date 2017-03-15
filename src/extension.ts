@@ -2,12 +2,16 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import * as vscode from 'vscode';
 import { connect, Socket } from 'net';
 import * as reduce from 'reduce-for-promises';
 import { SDSConnection, Hash, crypt_md5 } from 'node-sds';
 import * as tsc from 'typescript-compiler';
 import * as config from './config';
+
+
+const open = require('open');
 
 
 type script = {name, souceCode};
@@ -114,6 +118,81 @@ export function activate(context: vscode.ExtensionContext) {
             }
         })
     );
+
+    // view documentation
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.viewDocumentation', (file) => {
+            
+            // current editor
+            const editor = vscode.window.activeTextEditor;
+
+            // skip import lines
+            var cnt = 0;
+            var currline:string = editor.document.lineAt(cnt).text;
+            while(currline.startsWith('import')) {
+                cnt ++;
+                currline = editor.document.lineAt(cnt).text;
+            }
+
+            // line should look like "export class Context {"
+            var _words = currline.split(' ');
+            if(_words.length != 4 || _words[0] !== 'export' || _words[1] !== 'class' || _words[3] != '{') {
+                return;
+            }
+
+
+            var classname = _words[2];
+
+            // the Position object gives you the line and character where the cursor is
+            const pos = editor.selection.active;
+            const line = editor.document.lineAt(pos.line).text;
+            const words = line.split(' ');
+            var member = '';
+
+            if(words[0].trim() === 'public') {
+                member = words[1].trim();
+                var brace = member.indexOf('(');
+                if(brace >= 0) {
+                    member = member.substr(0, brace);
+                }
+            }
+
+            const jsFileName = 'class' + classname + '.js';
+            const htmlFileName = 'class' + classname + '.html';
+            const jsFilePath = vscode.workspace.rootPath + path.sep + 'mapping' + path.sep + jsFileName;
+
+            fs.readFile(jsFilePath, (err, data) => {
+                if(err) {
+                    var page = 'https://jenkins.otris.de/job/Dokumentation-Build/javadoc/api/portalscript/' + htmlFileName;
+                    var browser = 'firefox';
+                    open(page, browser);
+                } else {
+                    // \r was missing in the generated files
+                    var lines = data.toString().split("\n");
+                    for(var i=2; i<lines.length-1; i++) {
+                        var entries = lines[i].split(',');
+
+                        // entries[0] looks like: "     [ "clientId""
+                        var entry = entries[0].replace('[','').replace(/"/g,'').trim();
+                        if(entry === member) {
+                            // entries[1] looks like: "  "classContext.html#a6d644a063ace489a2893165bb3856579""
+                            var link = entries[1].replace(/"/g,'').trim();
+                            var page = 'https://jenkins.otris.de/job/Dokumentation-Build/javadoc/api/portalscript/' + link;
+                            var browser = 'firefox';
+                            open(page, browser);
+                            break;
+                        }
+                    }
+                    if(i === lines.length-1) {
+                        var page = 'https://jenkins.otris.de/job/Dokumentation-Build/javadoc/api/portalscript/' + htmlFileName;
+                        var browser = 'firefox';
+                        open(page, browser);
+                    }
+                }
+            });
+        })
+    );
+    
 
     vscode.window.setStatusBarMessage('vscode-documents-scripting is active');
 }
@@ -418,7 +497,7 @@ async function downloadScript(sdsConnection: SDSConnection, scriptName: string, 
                 reject("path missing");
             } else {
                 let scriptPath = path.join(parampath, scriptName + ".js");
-                // let scriptPath = parampath + "\\" + scriptName + ".js";
+                // let scriptPath = parampath + sep + scriptName + ".js";
                 fs.writeFile(scriptPath, scriptSource[0], {encoding: 'utf8'}, function(error) {
                     if(error) {
                         if(error.code === "ENOENT") {
@@ -534,16 +613,17 @@ async function runScript(sdsConnection: SDSConnection): Promise<void> {
         let doc = editor.document;
 
         // todo
-        let scriptPath = doc.fileName;
-        let NameStart = scriptPath.lastIndexOf("\\") + 1;
-        let NameLength = scriptPath.lastIndexOf(".") - NameStart;
-        let shortName = scriptPath.substr(NameStart, NameLength);
+        // let scriptPath = doc.fileName;
+        // let NameStart = scriptPath.lastIndexOf(path.sep) + 1;
+        // let NameLength = scriptPath.lastIndexOf(".") - NameStart;
+        // let shortName = scriptPath.substr(NameStart, NameLength);
+        let shortName = path.basename(doc.fileName, '.js');
         
         sdsConnection.callClassOperation("PortalScript.runScript", [shortName]).then((value) => {
             vscode.window.setStatusBarMessage('runScript: ' + shortName);
             for(let i=0; i<value.length; i++) {
                 console.log("returnValue " + i + ": " + value[i]);
-                myOutputChannel.append(value[i] + "\n");
+                myOutputChannel.append(value[i] + os.EOL);
                 myOutputChannel.show();
             }
             resolve();

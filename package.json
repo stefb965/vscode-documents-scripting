@@ -2,11 +2,11 @@
   "name": "vscode-documents-scripting",
   "displayName": "VS Code extension for documents scripting",
   "description": "",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "otris-software",
   "author": {
-      "name": "otris software",
-      "email": "heller@otris.de"
+    "name": "otris software",
+    "email": "heller@otris.de"
   },
   "engines": {
     "vscode": "^1.5.0"
@@ -21,7 +21,8 @@
     "onCommand:extension.uploadScript",
     "onCommand:extension.runScript",
     "onCommand:extension.saveConfiguration",
-    "onCommand:extension.loadConfiguration"
+    "onCommand:extension.loadConfiguration",
+    "onCommand:extension.viewDocumentation"
   ],
   "main": "./out/src/extension",
   "contributes": {
@@ -57,6 +58,10 @@
       {
         "command": "extension.clearConfiguration",
         "title": "Documents Configuration: Clear"
+      },
+      {
+        "command": "extension.viewDocumentation",
+        "title": "Documents: View Documentation"
       }
     ],
     "menus": {
@@ -66,6 +71,11 @@
         },
         {
           "command": "extension.downloadAllScripts"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "extension.viewDocumentation"
         }
       ]
     }
@@ -88,6 +98,7 @@
     "fs": "0.0.1-security",
     "net": "^1.0.2",
     "node-sds": "git+https://git@github.com/otris/node-sds.git",
+    "open": "0.0.5",
     "path": "^0.12.7",
     "reduce-for-promises": "^1.2.1",
     "typescript-compiler": "^1.4.1-2",
