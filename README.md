@@ -55,3 +55,8 @@ Explorer context menu entry for "Upload Scripts From Folder" and "Download Scrip
 Check for .ini file in VS Code root path.
 
 Tested by: developer only, please help and test it!
+
+### 0.0.5
+
+Bugfix for run script on linux
+
