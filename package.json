@@ -2,7 +2,7 @@
   "name": "vscode-documents-scripting",
   "displayName": "VS Code extension for documents scripting",
   "description": "",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "publisher": "otris-software",
   "author": {
     "name": "otris software",
@@ -22,46 +22,68 @@
     "onCommand:extension.runScript",
     "onCommand:extension.saveConfiguration",
     "onCommand:extension.loadConfiguration",
-    "onCommand:extension.viewDocumentation"
+    "onCommand:extension.clearConfiguration",
+    "onCommand:extension.viewDocumentation",
+    "onCommand:extension.compareScript"
   ],
   "main": "./out/src/extension",
   "contributes": {
     "commands": [
       {
         "command": "extension.downloadAllScripts",
-        "title": "Documents: Download Scripts To Folder"
+        "title": "Download Scripts To Folder",
+        "category": "DOCUMENTS"
       },
       {
         "command": "extension.downloadScript",
-        "title": "Documents: Download Script"
+        "title": "Download Script",
+        "category": "DOCUMENTS"
       },
       {
         "command": "extension.uploadAllScripts",
-        "title": "Documents: Upload Scripts From Folder"
+        "title": "Upload Scripts From Folder",
+        "category": "DOCUMENTS"
       },
       {
         "command": "extension.uploadScript",
-        "title": "Documents: Upload Current Script"
+        "title": "Upload Script",
+        "category": "DOCUMENTS"
       },
       {
         "command": "extension.runScript",
-        "title": "Documents: Run Current Script"
+        "title": "Run Active Script",
+        "category": "DOCUMENTS"
       },
       {
         "command": "extension.saveConfiguration",
-        "title": "Documents Configuration: Save"
+        "title": "Save Login Data (default.ini)",
+        "category": "DOCUMENTS"
       },
       {
         "command": "extension.loadConfiguration",
-        "title": "Documents Configuration: Load"
+        "title": "Load Login Data (.ini)",
+        "category": "DOCUMENTS"
       },
       {
         "command": "extension.clearConfiguration",
-        "title": "Documents Configuration: Clear"
+        "title": "Clear Internal Login Data",
+        "category": "DOCUMENTS"
       },
       {
         "command": "extension.viewDocumentation",
-        "title": "Documents: View Documentation"
+        "title": "View In Otris Documentation",
+        "category": "DOCUMENTS"
+      },
+      {
+        "command": "extension.compareScript",
+        "title": "Show Diff",
+        "category": "DOCUMENTS"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "extension.runScript",
+        "key": "Ctrl+Alt+R"
       }
     ],
     "menus": {
@@ -71,11 +93,15 @@
         },
         {
           "command": "extension.downloadAllScripts"
+        },
+        {
+          "command": "extension.compareScript"
         }
       ],
       "editor/context": [
         {
-          "command": "extension.viewDocumentation"
+          "command": "extension.viewDocumentation",
+          "when": "resourceLangId == typescript"
         }
       ]
     }

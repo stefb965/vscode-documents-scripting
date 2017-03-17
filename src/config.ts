@@ -16,43 +16,6 @@ const QP_MAYBE_LATER: string = 'Maybe later';
 
 
 
-// todo new file 'utils.ts'
-async function writeFileMkdir (parampath, data) {
-    let _path: string = parampath;
-    if(path.extname(parampath)) {
-        _path = path.dirname(parampath);
-    }
-    let file: string = path.join(_path, INI_DEFAULT_NAME);
-
-    return new Promise<void>((resolve, reject) => {
-        fs.writeFile(file, data, {encoding: 'utf8'}, function(error) {
-            if(error) {
-                if(error.code === 'ENOENT') {
-                    fs.mkdir(_path, function(error) {
-                        if(error) {
-                            reject(error);
-                        } else {
-                            console.log('created path: ' + _path);
-                            fs.writeFile(file, data, {encoding: 'utf8'}, function(error) {
-                                if(error) {
-                                    reject(error);
-                                } else {
-                                    console.log('wrote file: ' +  file);
-                                    resolve();
-                                }
-                            });
-                        }
-                    });
-                } else {
-                    reject(error);
-                }
-            } else {
-                console.log('wrote file: ' +  file);
-                resolve();
-            }
-        });
-    });
-}
 
 
 
@@ -60,7 +23,7 @@ async function writeFileMkdir (parampath, data) {
 
 export const SERVER: string = 'localhost';
 export const PORT: number = 11000;
-export const PRINCIPAL: string = '';
+export const PRINCIPAL: string = 'dopaag';
 export const USER: string = 'admin';
 export const PASSWORD = '';
 
@@ -181,7 +144,7 @@ export class IniData {
                     resolve();
                 }
             }).catch((reason) => {
-                console.log('reject from askForLoginData() or askForDownloadPath()');
+                console.log('reject from askForLoginData(): ' + reason);
                 reject(reason);
             });
         });
@@ -257,35 +220,6 @@ export class IniData {
 
 
 
-    async askForDownloadPath(parampath?: string): Promise<string> {
-        console.log('IniData.askForDownloadPath');
-
-        return new Promise<string>((resolve, reject) => {
-            if(parampath) {
-                let _path = parampath;
-                if(path.extname(parampath)) {
-                    _path = path.dirname(parampath);
-                }
-                resolve(_path);
-            } else {
-                let activePath = this.getActivePath();
-                let rootPath = vscode.workspace? vscode.workspace.rootPath:'';
-                let defaultPath: string = activePath? activePath: rootPath;
-                vscode.window.showInputBox({
-                    prompt: 'Please enter the download path',
-                    value: defaultPath,
-                    ignoreFocusOut: true,
-                }).then((_path) => {
-                    if(_path) {
-                        resolve(_path);
-                    } else {
-                        reject();
-                        vscode.window.showErrorMessage('Input download path cancelled: command cannot be executed');
-                    }
-                });
-            }
-        });
-    }
 
 
     // todo load current file
@@ -375,22 +309,6 @@ export class IniData {
         return true;
     }
 
-    async writeIniFile(parampath: string): Promise<void> {
-        console.log('IniData.writeIniFile');
-        let data = '';
-        data += INI_CONN_PART + os.EOL;
-        data += 'server=' + this.server + os.EOL;
-        data += 'port=' + this.port + os.EOL;
-        data += 'principal=' + this.principal + os.EOL;
-        data += 'user=' + this.user + os.EOL;
-        data += 'password=' + os.EOL;
-        if(this.hash) {
-            data += 'hash=' + this.hash.value + os.EOL;
-        }
-        return writeFileMkdir(parampath, data);
-    }
-
-
     public getActivePath(): string {
         console.log('IniData.getActivePath');
 
@@ -405,6 +323,23 @@ export class IniData {
         // if there's no file, return opened folder path
         return vscode.workspace.rootPath;
     }
+
+
+    async writeIniFile(parampath: string): Promise<void> {
+        console.log('IniData.writeIniFile');
+        let data = '';
+        data += INI_CONN_PART + os.EOL;
+        data += 'server=' + this.server + os.EOL;
+        data += 'port=' + this.port + os.EOL;
+        data += 'principal=' + this.principal + os.EOL;
+        data += 'user=' + this.user + os.EOL;
+        data += 'password=' + os.EOL;
+        if(this.hash) {
+            data += 'hash=' + this.hash.value + os.EOL;
+        }
+        return this.writeDefaultIni(parampath, data);
+    }
+
 
     public findIniFileInFolder(parampath: string): string {
         console.log('IniData.findIniFile');
@@ -428,6 +363,45 @@ export class IniData {
         } catch (e) {
             return '';
         }
+    }
+
+
+
+    async writeDefaultIni (parampath, data) {
+        let _path: string = parampath;
+        if(path.extname(parampath)) {
+            _path = path.dirname(parampath);
+        }
+        let file: string = path.join(_path, INI_DEFAULT_NAME);
+
+        return new Promise<void>((resolve, reject) => {
+            fs.writeFile(file, data, {encoding: 'utf8'}, function(error) {
+                if(error) {
+                    if(error.code === 'ENOENT') {
+                        fs.mkdir(_path, function(error) {
+                            if(error) {
+                                reject(error);
+                            } else {
+                                console.log('created path: ' + _path);
+                                fs.writeFile(file, data, {encoding: 'utf8'}, function(error) {
+                                    if(error) {
+                                        reject(error);
+                                    } else {
+                                        console.log('wrote file: ' +  file);
+                                        resolve();
+                                    }
+                                });
+                            }
+                        });
+                    } else {
+                        reject(error);
+                    }
+                } else {
+                    console.log('wrote file: ' +  file);
+                    resolve();
+                }
+            });
+        });
     }
 
     dispose() {

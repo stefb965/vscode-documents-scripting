@@ -122,7 +122,8 @@ export function activate(context: vscode.ExtensionContext) {
     // view documentation
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.viewDocumentation', (file) => {
-            
+            // file is not used, use active editor...
+
             // current editor
             const editor = vscode.window.activeTextEditor;
 
@@ -162,30 +163,33 @@ export function activate(context: vscode.ExtensionContext) {
             const jsFilePath = vscode.workspace.rootPath + path.sep + 'mapping' + path.sep + jsFileName;
 
             fs.readFile(jsFilePath, (err, data) => {
+
+                // 'https://jenkins.otris.de/job/Dokumentation-Build/javadoc/api/portalscript/'
+                let portalscriptdocu = 'http://doku.otris.de/api/portalscript/';
+                var browser = 'firefox';
                 if(err) {
-                    var page = 'https://jenkins.otris.de/job/Dokumentation-Build/javadoc/api/portalscript/' + htmlFileName;
-                    var browser = 'firefox';
+                    var page = portalscriptdocu + htmlFileName;
                     open(page, browser);
+
                 } else {
                     // \r was missing in the generated files
                     var lines = data.toString().split("\n");
+
                     for(var i=2; i<lines.length-1; i++) {
                         var entries = lines[i].split(',');
-
                         // entries[0] looks like: "     [ "clientId""
                         var entry = entries[0].replace('[','').replace(/"/g,'').trim();
+
                         if(entry === member) {
                             // entries[1] looks like: "  "classContext.html#a6d644a063ace489a2893165bb3856579""
                             var link = entries[1].replace(/"/g,'').trim();
-                            var page = 'https://jenkins.otris.de/job/Dokumentation-Build/javadoc/api/portalscript/' + link;
-                            var browser = 'firefox';
+                            var page = portalscriptdocu + link;
                             open(page, browser);
                             break;
                         }
                     }
                     if(i === lines.length-1) {
-                        var page = 'https://jenkins.otris.de/job/Dokumentation-Build/javadoc/api/portalscript/' + htmlFileName;
-                        var browser = 'firefox';
+                        var page = portalscriptdocu + htmlFileName;
                         open(page, browser);
                     }
                 }
@@ -193,6 +197,25 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
     
+    // compare script
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.compareScript', (param) => {
+            let filepath = param._fsPath;
+            if('.js' === path.extname(filepath)) {
+                let filename = path.basename(filepath);
+                // file:///
+                let leftfile = filepath;
+                let rightfile = path.join(vscode.workspace.rootPath, 'diff', filename);
+                let lefturi = vscode.Uri.file(leftfile);
+                let righturi = vscode.Uri.file(rightfile);
+                vscode.commands.executeCommand('vscode.diff', lefturi, righturi, 'Diff').then(() => {
+                }, (reason) => {
+                    vscode.window.showErrorMessage('reason ' + reason);
+                });
+            }
+        })
+    );
+
 
     vscode.window.setStatusBarMessage('vscode-documents-scripting is active');
 }
@@ -266,30 +289,26 @@ async function ensureUploadPath(uploadpath?: string): Promise<string> {
     });
 }
 
-async function ensureScriptName(uploadscript?: string): Promise<string> {
-    console.log('askForUploadPath');
+async function ensureScriptName(): Promise<string> {
+    console.log('ensureScriptName');
     return new Promise<string>((resolve, reject) => {
-        if(uploadscript) {
-            let _path = uploadscript;
-            if(path.extname(uploadscript)) {
-                _path = path.dirname(uploadscript);
-            }
-            resolve(_path);
-        } else {
-            let activePath = iniData.getActivePath();
-            vscode.window.showInputBox({
-                prompt: 'Please enter the script name or path',
-                //value: activePath,
-                ignoreFocusOut: true,
-            }).then((_scriptname) => {
-                if(_scriptname) {
-                    let scriptname = path.basename(_scriptname, '.js');
-                    resolve(scriptname);
-                } else {
-                    reject();
-                }
-            });
+        let activeScript = '';
+        let editor = vscode.window.activeTextEditor;
+        if(editor) {
+            activeScript = editor.document.fileName;
         }
+        vscode.window.showInputBox({
+            prompt: 'Please enter the script name or path',
+            value: activeScript,
+            ignoreFocusOut: true,
+        }).then((_scriptname) => {
+            if(_scriptname) {
+                let scriptname = path.basename(_scriptname, '.js');
+                resolve(scriptname);
+            } else {
+                reject();
+            }
+        });
     });
 }
 
@@ -355,6 +374,40 @@ function connectAndCallOperation(operation: string, textDocument?: vscode.TextDo
 }
 
 
+
+
+async function askForDownloadPath(parampath?: string): Promise<string> {
+    console.log('IniData.askForDownloadPath');
+
+    return new Promise<string>((resolve, reject) => {
+        if(parampath) {
+            let _path = parampath;
+            if(path.extname(parampath)) {
+                _path = path.dirname(parampath);
+            }
+            resolve(_path);
+        } else {
+            let activePath = iniData.getActivePath();
+            let rootPath = vscode.workspace? vscode.workspace.rootPath:'';
+            let defaultPath: string = activePath? activePath: rootPath;
+            vscode.window.showInputBox({
+                prompt: 'Please enter the download path',
+                value: defaultPath,
+                ignoreFocusOut: true,
+            }).then((_path) => {
+                if(_path) {
+                    resolve(_path);
+                } else {
+                    reject();
+                    vscode.window.showErrorMessage('Input download path cancelled: command cannot be executed');
+                }
+            });
+        }
+    });
+}
+
+
+
 async function switchOperation(sdsConnection: SDSConnection,
                                operation: string,
                                textDocument?: vscode.TextDocument,
@@ -367,7 +420,7 @@ async function switchOperation(sdsConnection: SDSConnection,
     }
     else if('downloadAllScripts' === operation) {
         return new Promise<void>((resolve, reject) => {
-            iniData.askForDownloadPath(parampath).then((_path) => {
+            askForDownloadPath(parampath).then((_path) => {
                 if(_path) {
                     return getScriptNamesFromServer(sdsConnection).then((scriptNames) => {
                         return reduce(scriptNames, function(numscripts, name) {
@@ -386,7 +439,7 @@ async function switchOperation(sdsConnection: SDSConnection,
     else if('downloadScript' === operation) {
         return new Promise<void>((resolve, reject) => {
             ensureScriptName().then((scriptname) => {
-                iniData.askForDownloadPath().then((_path) => {
+                askForDownloadPath().then((_path) => {
                     if(_path) {
                         downloadScript(sdsConnection, scriptname, _path).then(() => {
                             vscode.window.setStatusBarMessage('downloaded: ' + scriptname);
@@ -496,6 +549,19 @@ async function downloadScript(sdsConnection: SDSConnection, scriptName: string, 
             if('' === parampath) {
                 reject("path missing");
             } else {
+                let lines = scriptSource[0].split('\n');
+                if(lines.length > 1) {
+                    if(lines[0].startsWith("// var context = require(") || lines[0].startsWith("// var util = require(") ) {
+                        lines[0] = lines[0].replace('// ', '');
+                    }
+                    if(lines[1].startsWith("// var context = require(") || lines[1].startsWith("// var util = require(") ) {
+                        lines[1] = lines[1].replace('// ', '');
+                    }
+                }
+                scriptSource[0] = lines.join('\n');
+
+
+
                 let scriptPath = path.join(parampath, scriptName + ".js");
                 // let scriptPath = parampath + sep + scriptName + ".js";
                 fs.writeFile(scriptPath, scriptSource[0], {encoding: 'utf8'}, function(error) {
@@ -532,6 +598,27 @@ async function downloadScript(sdsConnection: SDSConnection, scriptName: string, 
 }
 
 
+
+
+
+async function uploadScript(sdsConnection: SDSConnection, shortName: string, scriptSource: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+        let lines = scriptSource.split('\n');
+        if(lines[0].startsWith("var context = require(") || lines[0].startsWith("var util = require(") ) {
+            lines[0] = '// ' + lines[0];
+        }
+        if(lines[1].startsWith("var context = require(") || lines[1].startsWith("var util = require(") ) {
+            lines[1] = '// ' + lines[1];
+        }
+        scriptSource = lines.join('\n');
+        sdsConnection.callClassOperation("PortalScript.uploadScript", [shortName, scriptSource], true).then((value) => {
+            console.log('uploaded shortName: ', shortName);
+            resolve();
+        }).catch((reason) => {
+            reject(OPERATION_UPLOAD + '(): sdsConnection.callClassOperation failed: ' + reason);
+        });
+    });
+}
 
 
 
@@ -588,16 +675,6 @@ async function uploadActiveScript(sdsConnection: SDSConnection, textDocument?: v
 }
 
 
-async function uploadScript(sdsConnection: SDSConnection, shortName: string, scriptSource: string): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-        sdsConnection.callClassOperation("PortalScript.uploadScript", [shortName, scriptSource], true).then((value) => {
-            console.log('uploaded shortName: ', shortName);
-            resolve();
-        }).catch((reason) => {
-            reject(OPERATION_UPLOAD + '(): sdsConnection.callClassOperation failed: ' + reason);
-        });
-    });
-}
 
 
 
