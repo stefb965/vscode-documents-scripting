@@ -7,6 +7,7 @@ import { Hash, crypt_md5 } from 'node-sds';
 
 
 const INI_DEFAULT_NAME: string = 'default.ini';
+const LAUNCH_JSON_NAME: string = 'launch.json';
 const INI_CONN_PART: string = '[Connection]';
 const CRYPTMD5_SALT: string = 'o3';
 
@@ -15,6 +16,42 @@ const QP_SAVE_CONF: string = 'Save Login Data';
 const QP_MAYBE_LATER: string = 'Maybe later';
 
 
+
+
+
+const initialConfigurations = [
+    {
+        name: 'Launch Script on Server',
+        request: 'launch',
+        type: 'janus',
+        script: '',
+        username: '',
+        password: '',
+        principal: '',
+        host: 'localhost',
+        port: 10000,
+        stopOnEntry: false,
+        log: {
+            fileName: '${workspaceRoot}/vscode-janus-debug-launch.log',
+            logLevel: {
+                default: 'Debug',
+            },
+        },
+    },
+    {
+        name: 'Attach to Server',
+        request: 'attach',
+        type: 'janus',
+        host: 'localhost',
+        port: 8089,
+        log: {
+            fileName: '${workspaceRoot}/vscode-janus-debug-attach.log',
+            logLevel: {
+                default: 'Debug',
+            },
+        },
+    },
+];
 
 
 
@@ -68,8 +105,8 @@ export class IniData {
 
             if(this.checkLoginData()) {
                 resolve();
-
-            } else if(this.loadIniFile() && this.checkLoginData()) {
+            // } else if(this.loadIniFile() && this.checkLoginData()) {
+            } else if(this.loadLaunchJason() && this.checkLoginData()) {
                 resolve();
 
             } else { // loginData not set and no usable configuration file found
@@ -92,7 +129,8 @@ export class IniData {
 
             // input login data
             this.askForLoginData().then(() => {
-                this.writeIniFile().then(() => {
+                // this.writeIniFile().then(() => {
+                this.writeLaunchJson().then(() => {
                     vscode.window.setStatusBarMessage('Saved login data');
                     resolve();
                 }).catch((reason) => {
@@ -198,10 +236,37 @@ export class IniData {
     // }
 
 
+
+    public loadLaunchJason() : boolean {
+        const launchJsonPath = path.join(vscode.workspace.rootPath, '.vscode', LAUNCH_JSON_NAME);
+
+        try {
+            const jsonContent = fs.readFileSync(launchJsonPath, 'utf8');
+            const jsonObject = JSON.parse(jsonContent);
+            const configurations = jsonObject.configurations;
+
+            if(configurations) {
+                configurations.forEach((config: any) => {
+                    if (config.request == 'launch') {
+                        this.server = config.host;
+                        this.port = config.port;
+                        this.principal = config.principal;
+                        this.user = config.user;
+                    }
+                });
+            }
+        } catch (err) {
+            return false;
+        }
+
+        return true;
+    }
+
+
     public loadIniFile(): boolean {
         console.log('IniData.loadIniFile');
 
-        let file = this.findIniFile();
+        let file = this.findConfigurationFile(false);
         if(!file) {
             return false;
         }
@@ -274,18 +339,47 @@ export class IniData {
         if(this.hash) {
             data += 'hash=' + this.hash.value + os.EOL;
         }
-        return this.writeDefaultIni(data);
+        return this.writeConfigFile(data, false);
+    }
+
+    async writeLaunchJson(): Promise<void> {
+        console.log('IniData.writeLaunchJson');
+
+        initialConfigurations.forEach((config: any) => {
+            if (config.request == 'launch') {
+                config.host = this.server;
+                config.port = this.port;
+                config.principal = this.principal;
+                config.user = this.user;
+            }
+        });
+
+        const configurations = JSON.stringify(initialConfigurations, null, '\t')
+            .split('\n').map(line => '\t' + line).join('\n').trim();
+
+        const data = [
+            '{',
+            '\t// Use IntelliSense to learn about possible configuration attributes.',
+            '\t// Hover to view descriptions of existing attributes.',
+            '\t// For more information, visit: https://lalala',
+            '\t"version": "0.2.0",',
+            '\t"configurations": ' + configurations,
+            '}',
+        ].join('\n');
+
+        return this.writeConfigFile(data);
     }
 
 
-    public findIniFile(): string {
-        console.log('IniData.findIniFile');
+    public findConfigurationFile(json=true): string {
+        console.log('IniData.findConfigurationFile');
+
         let rootPath = vscode.workspace.rootPath;
         if(!rootPath) {
             return '';
         }
 
-        let ini = path.join(rootPath, '.vscode', INI_DEFAULT_NAME);
+        let ini = path.join(rootPath, '.vscode', json?LAUNCH_JSON_NAME:INI_DEFAULT_NAME);
         try {
             fs.accessSync(ini);
             return ini;
@@ -294,9 +388,7 @@ export class IniData {
         }
     }
 
-
-
-    async writeDefaultIni (data) {
+    async writeConfigFile (data, json=true) {
 
         return new Promise<void>((resolve, reject) => {
             let rootPath = vscode.workspace.rootPath;
@@ -307,7 +399,7 @@ export class IniData {
 
             } else {
                 let _path: string = path.join(rootPath, '.vscode');
-                let file = path.join(_path, INI_DEFAULT_NAME);
+                let file = path.join(_path, json?LAUNCH_JSON_NAME:INI_DEFAULT_NAME);
 
                 fs.writeFile(file, data, {encoding: 'utf8'}, function(error) {
                     if(error) {
