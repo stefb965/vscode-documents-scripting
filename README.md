@@ -17,9 +17,7 @@ Documents Server Version 5.0b #2032
 
 ## Insalling
 
-Get the .vsix file and
-[Install from a VSIX](https://code.visualstudio.com/docs/extensions/install-extension#_install-from-a-vsix).
-The extension will be available after reload.
+[Install from a VSIX](https://code.visualstudio.com/docs/extensions/install-extension).
 
 
 ## Extension Settings
