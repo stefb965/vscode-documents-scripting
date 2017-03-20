@@ -2,7 +2,7 @@
 
 Visual Studio Code extension.
 
-This extension intends to help you creating, editing and executing JavaScript files on a Documents-Server.
+This extension provides support for creating and editing JavaScript files on a DOCUMENTS Server.
 
 
 ## Features
