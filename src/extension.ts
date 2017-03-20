@@ -36,6 +36,12 @@ let disposableOnSave: vscode.Disposable;
 
 
 
+
+
+// hack
+const DIFF_FOLDER = '_tmp';
+
+
 export function activate(context: vscode.ExtensionContext) {
 
     iniData = new config.IniData(myOutputChannel);
@@ -101,23 +107,23 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    // load configuration
-    context.subscriptions.push(
-        vscode.commands.registerCommand('extension.loadConfiguration', () => {
-            if(iniData) {
-                iniData.loadConfiguration();
-            }
-        })
-    );
+    // // load configuration
+    // context.subscriptions.push(
+    //     vscode.commands.registerCommand('extension.loadConfiguration', () => {
+    //         if(iniData) {
+    //             iniData.loadConfiguration();
+    //         }
+    //     })
+    // );
 
-    // clear configuration
-    context.subscriptions.push(
-        vscode.commands.registerCommand('extension.clearConfiguration', () => {
-            if(iniData) {
-                iniData.clearAllData(true);
-            }
-        })
-    );
+    // // clear configuration
+    // context.subscriptions.push(
+    //     vscode.commands.registerCommand('extension.clearConfiguration', () => {
+    //         if(iniData) {
+    //             iniData.clearAllData(true);
+    //         }
+    //     })
+    // );
 
     // view documentation
     context.subscriptions.push(
@@ -126,6 +132,9 @@ export function activate(context: vscode.ExtensionContext) {
 
             // current editor
             const editor = vscode.window.activeTextEditor;
+            if(!editor || !vscode.workspace.rootPath) {
+                return;
+            }
 
             // skip import lines
             var cnt = 0;
@@ -135,7 +144,7 @@ export function activate(context: vscode.ExtensionContext) {
                 currline = editor.document.lineAt(cnt).text;
             }
 
-            // line should look like "export class Context {"
+            // first line after import should look like "export class Context {"
             var _words = currline.split(' ');
             if(_words.length != 4 || _words[0] !== 'export' || _words[1] !== 'class' || _words[3] != '{') {
                 return;
@@ -146,6 +155,9 @@ export function activate(context: vscode.ExtensionContext) {
 
             // the Position object gives you the line and character where the cursor is
             const pos = editor.selection.active;
+            if(!pos) {
+                return;
+            }
             const line = editor.document.lineAt(pos.line).text;
             const words = line.split(' ');
             var member = '';
@@ -160,14 +172,14 @@ export function activate(context: vscode.ExtensionContext) {
 
             const jsFileName = 'class' + classname + '.js';
             const htmlFileName = 'class' + classname + '.html';
-            const jsFilePath = vscode.workspace.rootPath + path.sep + 'mapping' + path.sep + jsFileName;
+            const jsFilePath = path.join(vscode.workspace.rootPath, 'mapping', jsFileName);
 
             fs.readFile(jsFilePath, (err, data) => {
 
                 // 'https://jenkins.otris.de/job/Dokumentation-Build/javadoc/api/portalscript/'
                 let portalscriptdocu = 'http://doku.otris.de/api/portalscript/';
                 var browser = 'firefox';
-                if(err) {
+                if(err || !data) {
                     var page = portalscriptdocu + htmlFileName;
                     open(page, browser);
 
@@ -177,6 +189,9 @@ export function activate(context: vscode.ExtensionContext) {
 
                     for(var i=2; i<lines.length-1; i++) {
                         var entries = lines[i].split(',');
+                        if(entries.length < 2) {
+                            continue;
+                        }
                         // entries[0] looks like: "     [ "clientId""
                         var entry = entries[0].replace('[','').replace(/"/g,'').trim();
 
@@ -200,18 +215,36 @@ export function activate(context: vscode.ExtensionContext) {
     // compare script
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.compareScript', (param) => {
-            let filepath = param._fsPath;
-            if('.js' === path.extname(filepath)) {
-                let filename = path.basename(filepath);
-                // file:///
-                let leftfile = filepath;
-                let rightfile = path.join(vscode.workspace.rootPath, 'diff', filename);
-                let lefturi = vscode.Uri.file(leftfile);
-                let righturi = vscode.Uri.file(rightfile);
-                vscode.commands.executeCommand('vscode.diff', lefturi, righturi, 'Diff').then(() => {
-                }, (reason) => {
-                    vscode.window.showErrorMessage('reason ' + reason);
-                });
+
+            let filepath;
+
+            if(param) {
+                filepath = param._fsPath;
+            } else {
+                let editor = vscode.window.activeTextEditor;
+                if (editor && editor.document) {
+                    filepath = editor.document.fileName;
+                }
+            }
+
+            if(!filepath) {
+                vscode.window.showErrorMessage('Select or open a file to compare');
+                return;
+            } else {
+                if('.js' === path.extname(filepath)) {
+                    let filename = path.basename(filepath);
+                    let leftfile = filepath;
+                    if(vscode.workspace.rootPath) {
+                        let rightfile = path.join(vscode.workspace.rootPath, DIFF_FOLDER, filename);
+                        let lefturi = vscode.Uri.file(leftfile);
+                        let righturi = vscode.Uri.file(rightfile);
+                        let title = 'Diff ' + filename;
+                        vscode.commands.executeCommand('vscode.diff', lefturi, righturi, title).then(() => {
+                        }, (reason) => {
+                            vscode.window.showInformationMessage('Diff is not yet available!');
+                        });
+                    }
+                }
             }
         })
     );
@@ -261,26 +294,89 @@ function onDidSaveScript(textDocument: vscode.TextDocument) {
 }
 
 
+function getActivePath(): string {
+    console.log('IniData.getActivePath');
+
+    // first check current opened file?
+    let editor = vscode.window.activeTextEditor;
+    if (editor && editor.document) {
+        let file = editor.document.fileName;
+        const parsedPath = path.parse(file);
+        return parsedPath.dir;
+    }
+
+    // if there's no file, return opened folder path
+    return vscode.workspace.rootPath;
+}
+
+
+
+
+async function askForDownloadPath(parampath?: string): Promise<string> {
+    console.log('IniData.askForDownloadPath');
+
+    return new Promise<string>((resolve, reject) => {
+        if(parampath) {
+            let _path = parampath;
+            if(path.extname(parampath)) {
+                _path = path.dirname(parampath);
+            }
+            resolve(_path);
+        } else {
+            let activePath = getActivePath();
+            let rootPath = vscode.workspace? vscode.workspace.rootPath:'';
+            let defaultPath: string = activePath? activePath: rootPath;
+            vscode.window.showInputBox({
+                prompt: 'Please enter the download path',
+                value: defaultPath,
+                ignoreFocusOut: true,
+            }).then((_path) => {
+                if(_path) {
+                    if(!_path.startsWith(rootPath)) {
+                        reject();
+                        vscode.window.showErrorMessage('Path is not a subfolder');
+                    } else {
+                        resolve(_path);
+                    }
+                } else {
+                    reject();
+                    vscode.window.showErrorMessage('Input download path cancelled: command cannot be executed');
+                }
+            });
+        }
+    });
+}
 
 
 async function ensureUploadPath(uploadpath?: string): Promise<string> {
     console.log('ensureUploadPath');
     return new Promise<string>((resolve, reject) => {
+        let rootPath = vscode.workspace? vscode.workspace.rootPath:'';
         if(uploadpath) {
             let _path = uploadpath;
             if(path.extname(uploadpath)) {
                 _path = path.dirname(uploadpath);
             }
-            resolve(_path);
+            if(!_path.startsWith(rootPath)) {
+                reject();
+                vscode.window.showErrorMessage('Path is not a subfolder');
+            } else {
+                resolve(_path);
+            }
         } else {
-            let activePath = iniData.getActivePath();
+            let activePath = getActivePath();
             vscode.window.showInputBox({
                 prompt: 'Please enter the upload path',
                 value: activePath,
                 ignoreFocusOut: true,
             }).then((_path) => {
                 if(_path) {
-                    resolve(_path);
+                    if(!_path.startsWith(rootPath)) {
+                        reject();
+                        vscode.window.showErrorMessage('Path is not a subfolder');
+                    } else {
+                        resolve(_path);
+                    }
                 } else {
                     reject();
                 }
@@ -292,14 +388,15 @@ async function ensureUploadPath(uploadpath?: string): Promise<string> {
 async function ensureScriptName(): Promise<string> {
     console.log('ensureScriptName');
     return new Promise<string>((resolve, reject) => {
-        let activeScript = '';
+        let scriptName = '';
         let editor = vscode.window.activeTextEditor;
         if(editor) {
-            activeScript = editor.document.fileName;
+            let activeScript = editor.document.fileName;
+            scriptName = path.basename(activeScript, '.js');
         }
         vscode.window.showInputBox({
             prompt: 'Please enter the script name or path',
-            value: activeScript,
+            value: scriptName,
             ignoreFocusOut: true,
         }).then((_scriptname) => {
             if(_scriptname) {
@@ -364,8 +461,8 @@ function connectAndCallOperation(operation: string, textDocument?: vscode.TextDo
 
         sdsSocket.on('error', (err: any) => {
             console.log('callback socket.on(error)...');
-            console.log('failed to connect to host: ' + iniData.server + ' and port: ' + iniData.port);
             console.log(err);
+            vscode.window.showErrorMessage('failed to connect to host: ' + iniData.server + ' and port: ' + iniData.port);
         });
 
     }).catch((reason) => {
@@ -376,35 +473,6 @@ function connectAndCallOperation(operation: string, textDocument?: vscode.TextDo
 
 
 
-async function askForDownloadPath(parampath?: string): Promise<string> {
-    console.log('IniData.askForDownloadPath');
-
-    return new Promise<string>((resolve, reject) => {
-        if(parampath) {
-            let _path = parampath;
-            if(path.extname(parampath)) {
-                _path = path.dirname(parampath);
-            }
-            resolve(_path);
-        } else {
-            let activePath = iniData.getActivePath();
-            let rootPath = vscode.workspace? vscode.workspace.rootPath:'';
-            let defaultPath: string = activePath? activePath: rootPath;
-            vscode.window.showInputBox({
-                prompt: 'Please enter the download path',
-                value: defaultPath,
-                ignoreFocusOut: true,
-            }).then((_path) => {
-                if(_path) {
-                    resolve(_path);
-                } else {
-                    reject();
-                    vscode.window.showErrorMessage('Input download path cancelled: command cannot be executed');
-                }
-            });
-        }
-    });
-}
 
 
 
@@ -604,11 +672,13 @@ async function downloadScript(sdsConnection: SDSConnection, scriptName: string, 
 async function uploadScript(sdsConnection: SDSConnection, shortName: string, scriptSource: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         let lines = scriptSource.split('\n');
-        if(lines[0].startsWith("var context = require(") || lines[0].startsWith("var util = require(") ) {
-            lines[0] = '// ' + lines[0];
-        }
-        if(lines[1].startsWith("var context = require(") || lines[1].startsWith("var util = require(") ) {
-            lines[1] = '// ' + lines[1];
+        if(lines.length > 1) {
+            if(lines[0].startsWith("var context = require(") || lines[0].startsWith("var util = require(") ) {
+                lines[0] = '// ' + lines[0];
+            }
+            if(lines[1].startsWith("var context = require(") || lines[1].startsWith("var util = require(") ) {
+                lines[1] = '// ' + lines[1];
+            }
         }
         scriptSource = lines.join('\n');
         sdsConnection.callClassOperation("PortalScript.uploadScript", [shortName, scriptSource], true).then((value) => {
@@ -633,44 +703,42 @@ async function uploadActiveScript(sdsConnection: SDSConnection, textDocument?: v
             doc = textDocument;
         } else {
             let editor = vscode.window.activeTextEditor;
-            if (!editor) {
-                reject(OPERATION_UPLOAD + '(): editor undefined');
+            if (editor) {
+                doc = editor.document;
             }
-            doc = editor.document;
         }
         if(!doc) {
-            reject(OPERATION_UPLOAD + '(): text-document undefined');
-        }
-
-
-
-        let shortName = '';
-        let scriptSource = '';
-
-        if(doc.fileName.endsWith('.js')) {
-            shortName = path.basename(doc.fileName, '.js');
-            scriptSource = doc.getText();
-
-        } else if(doc.fileName.endsWith('.ts')) {
-            shortName = path.basename(doc.fileName, '.ts');
-            let tsname:string = doc.fileName;
-            let jsname:string = tsname.substr(0, tsname.length - 3) + ".js";
-            //let tscargs = ['--module', 'commonjs', '-t', 'ES6'];
-            let tscargs = ['-t', 'ES5', '--out', jsname];
-            let retval = tsc.compile([doc.fileName], tscargs, null, function(e) { console.log(e); });
-            scriptSource = retval.sources[jsname];
-            console.log("scriptSource: " + scriptSource);
-
-        } else {
-            reject(OPERATION_UPLOAD + '(): only javascript or typescript files');
-        }
-    
-        uploadScript(sdsConnection, shortName, scriptSource).then((value) => {
-            vscode.window.setStatusBarMessage('uploaded: ' + shortName);
+            vscode.window.showErrorMessage('Open the script and upload again');
             resolve();
-        }).catch((reason) => {
-            reject(reason);
-        });
+        } else {
+            let shortName = '';
+            let scriptSource = '';
+
+            if(doc.fileName.endsWith('.js')) {
+                shortName = path.basename(doc.fileName, '.js');
+                scriptSource = doc.getText();
+
+            } else if(doc.fileName.endsWith('.ts')) {
+                shortName = path.basename(doc.fileName, '.ts');
+                let tsname:string = doc.fileName;
+                let jsname:string = tsname.substr(0, tsname.length - 3) + ".js";
+                //let tscargs = ['--module', 'commonjs', '-t', 'ES6'];
+                let tscargs = ['-t', 'ES5', '--out', jsname];
+                let retval = tsc.compile([doc.fileName], tscargs, null, function(e) { console.log(e); });
+                scriptSource = retval.sources[jsname];
+                console.log("scriptSource: " + scriptSource);
+
+            } else {
+                reject(OPERATION_UPLOAD + '(): only javascript or typescript files');
+            }
+        
+            uploadScript(sdsConnection, shortName, scriptSource).then((value) => {
+                vscode.window.setStatusBarMessage('uploaded: ' + shortName);
+                resolve();
+            }).catch((reason) => {
+                reject(reason);
+            });
+        }
     });
 }
 
@@ -681,32 +749,30 @@ async function uploadActiveScript(sdsConnection: SDSConnection, textDocument?: v
 async function runScript(sdsConnection: SDSConnection): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         let editor = vscode.window.activeTextEditor;
-        if (!editor) {
-            reject("runScript(): editor undefined");
-        }
-        if(!editor.document.fileName.endsWith(".js")) {
-            reject("runScript(): only javascript files");
-        }
-        let doc = editor.document;
+        if (editor && editor.document.fileName.endsWith(".js")) {
+            let doc = editor.document;
 
-        // todo
-        // let scriptPath = doc.fileName;
-        // let NameStart = scriptPath.lastIndexOf(path.sep) + 1;
-        // let NameLength = scriptPath.lastIndexOf(".") - NameStart;
-        // let shortName = scriptPath.substr(NameStart, NameLength);
-        let shortName = path.basename(doc.fileName, '.js');
-        
-        sdsConnection.callClassOperation("PortalScript.runScript", [shortName]).then((value) => {
-            vscode.window.setStatusBarMessage('runScript: ' + shortName);
-            for(let i=0; i<value.length; i++) {
-                console.log("returnValue " + i + ": " + value[i]);
-                myOutputChannel.append(value[i] + os.EOL);
-                myOutputChannel.show();
-            }
-            resolve();
-        }).catch((reason) => {
-            reject("runScript(): sdsConnection.callClassOperation failed: " + reason);
-        });
+            // todo
+            // let scriptPath = doc.fileName;
+            // let NameStart = scriptPath.lastIndexOf(path.sep) + 1;
+            // let NameLength = scriptPath.lastIndexOf(".") - NameStart;
+            // let shortName = scriptPath.substr(NameStart, NameLength);
+            let shortName = path.basename(doc.fileName, '.js');
+            
+            sdsConnection.callClassOperation("PortalScript.runScript", [shortName]).then((value) => {
+                vscode.window.setStatusBarMessage('runScript: ' + shortName);
+                for(let i=0; i<value.length; i++) {
+                    console.log("returnValue " + i + ": " + value[i]);
+                    myOutputChannel.append(value[i] + os.EOL);
+                    myOutputChannel.show();
+                }
+                resolve();
+            }).catch((reason) => {
+                reject("runScript(): sdsConnection.callClassOperation failed: " + reason);
+            });
+        } else {
+            // silently ignore
+        }
     });
 }
 
