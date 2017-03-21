@@ -1,14 +1,14 @@
-# vscode-documents-scripting
+# DOCUMENTS Scripting
 
-Visual Studio Code extension.
+DOCUMENTS Scripting is an extension for the Source Code Editor Visual Studio Code. In order to create, edit and execute JavaScript files on a Documents-Server with Visual Studio Code this extension provides the following features:
+* Up- and downloading JavaScript files to and from a DOCUMENTS-Server.
+* Running JavaScript files on a DOCUMENTS-Server.
 
-This extension provides support for creating and editing JavaScript files on a DOCUMENTS Server.
+Please note: This extension is still a prototype. Additional features like comparison of local scripts with scripts on the server or IntelliSense will be integrated soon. 
+Please use https://github.com/otris/vscode-documents-scripting/issues for submitting suggestions, wishes or bugs. 
 
-
-## Features
-
-* Up- and downloading JavaScript files to and from a Documents-Server.
-* Running JavaScript files on a Documents-Server.
+# About otris software AG
+As a software-based data and document management specialist, otris software AG supports company decision-makers in realising management responsibilities. The solutions from otris software are available for this purpose. They can be used track, control and document all administrative processes completely and with full transparency. otris software is based in Dortmund, Germany. 
 
 
 ## Requirements
@@ -19,42 +19,4 @@ Documents Server Version 5.0b #2032
 
 [Install from a VSIX](https://code.visualstudio.com/docs/extensions/install-extension).
 
-
-## Extension Settings
-
-Not that I know of...
-
-## Known Issues
-
-Error handling is miserable. In many cases you won't get any information if something went wrong.
-
-## Release Notes
-
-### 0.0.1
-
-Upload Current Script,
-Download All Scripts,
-Run Current Script,
-Some configuration commands (will be changed soon)
-
-Tested by: user
-
-### 0.0.3
-
-Upload All Scripts From Folder,
-Download Script Name
-
-Tested by: user
-
-### 0.0.4
-
-Explorer context menu entry for "Upload Scripts From Folder" and "Download Scripts To Folder".
-
-Check for .ini file in VS Code root path.
-
-Tested by: developer only, please help and test it!
-
-### 0.0.5
-
-Bugfix for run script on linux
 

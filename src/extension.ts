@@ -134,7 +134,7 @@ export function activate(context: vscode.ExtensionContext) {
             let portalscriptdocu = 'http://doku.otris.de/api/portalscript/';
             urlExists(portalscriptdocu, function(err, exists) {
                 if(!exists) {
-                    vscode.window.showInformationMessage('View Otris Documentation is not yet available!');
+                    vscode.window.showInformationMessage('Documentation is not available!');
                 } else {
 
                     // current editor
@@ -742,6 +742,16 @@ async function uploadActiveScript(sdsConnection: SDSConnection, textDocument?: v
                 reject(OPERATION_UPLOAD + '(): only javascript or typescript files');
             }
         
+            let lines = scriptSource.split('\n');
+            if(lines.length > 1) {
+                if(lines[0].startsWith("var context = require(") || lines[0].startsWith("var util = require(") ) {
+                    lines[0] = '// ' + lines[0];
+                }
+                if(lines[1].startsWith("var context = require(") || lines[1].startsWith("var util = require(") ) {
+                    lines[1] = '// ' + lines[1];
+                }
+            }
+            scriptSource = lines.join('\n');
             uploadScript(sdsConnection, shortName, scriptSource).then((value) => {
                 vscode.window.setStatusBarMessage('uploaded: ' + shortName);
                 resolve();
