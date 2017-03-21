@@ -3,8 +3,10 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { Hash, crypt_md5 } from 'node-sds';
+import { Hash, crypt_md5, JanusPassword, getJanusPassword } from 'node-sds';
 
+
+const stripJsonComments = require('strip-json-comments');
 
 const INI_DEFAULT_NAME: string = 'default.ini';
 const LAUNCH_JSON_NAME: string = 'launch.json';
@@ -14,6 +16,7 @@ const CRYPTMD5_SALT: string = 'o3';
 
 const QP_SAVE_CONF: string = 'Save Login Data';
 const QP_MAYBE_LATER: string = 'Maybe later';
+
 
 
 
@@ -29,7 +32,8 @@ const initialConfigurations = [
         password: '',
         principal: '',
         host: 'localhost',
-        port: 10000,
+        applicationPort: 10000,
+        debuggerPort: 8089,
         stopOnEntry: false,
         log: {
             fileName: '${workspaceRoot}/vscode-janus-debug-launch.log',
@@ -43,7 +47,7 @@ const initialConfigurations = [
         request: 'attach',
         type: 'janus',
         host: 'localhost',
-        port: 8089,
+        debuggerPort: 8089,
         log: {
             fileName: '${workspaceRoot}/vscode-janus-debug-attach.log',
             logLevel: {
@@ -72,7 +76,7 @@ export class IniData {
     public port: number = 0;
     public principal: string = '';
     public user: string = '';
-    public hash: Hash = undefined;
+    public password: JanusPassword = '';
 
     public oc: vscode.OutputChannel;
 
@@ -103,10 +107,14 @@ export class IniData {
         console.log('IniData.ensureLoginData');
         return new Promise<void>((resolve, reject) => {
 
-            if(this.checkLoginData()) {
-                resolve();
-            // } else if(this.loadIniFile() && this.checkLoginData()) {
-            } else if(this.loadLaunchJason() && this.checkLoginData()) {
+            // if(this.checkLoginData()) {
+            //     resolve();
+            // // } else if(this.loadIniFile() && this.checkLoginData()) {
+            // } else 
+
+
+            // check launch.json for changes every time
+            if(this.loadLaunchJason() && this.checkLoginData()) {
                 resolve();
 
             } else { // loginData not set and no usable configuration file found
@@ -190,20 +198,14 @@ export class IniData {
                     this.user = user;
                     return vscode.window.showInputBox({
                         prompt: 'Please enter the password',
-                        value: this.hash? this.hash.value: PASSWORD,
+                        value: PASSWORD,
                         password: true,
                         ignoreFocusOut: true,
                     });
                 }
             }).then((password) => {
-                if(undefined != password) {
-                    // empty passwords are not hashed in janus
-                    let pwnotempty: boolean = (password.length > 0);
-                    // only create new hash, if the user typed in a password
-                    let newhash: boolean = (!this.hash || (password !== this.hash.value));
-                    if(pwnotempty && newhash) {
-                        this.hash = crypt_md5(password, CRYPTMD5_SALT);
-                    }
+                if(password != undefined) {
+                    this.password = getJanusPassword(password);
                     resolve();
                 } else {
                     reject();
@@ -242,16 +244,17 @@ export class IniData {
 
         try {
             const jsonContent = fs.readFileSync(launchJsonPath, 'utf8');
-            const jsonObject = JSON.parse(jsonContent);
+            const jsonObject = JSON.parse(stripJsonComments(jsonContent));
             const configurations = jsonObject.configurations;
 
             if(configurations) {
                 configurations.forEach((config: any) => {
                     if (config.request == 'launch') {
                         this.server = config.host;
-                        this.port = config.port;
+                        this.port = config.applicationPort;
                         this.principal = config.principal;
                         this.user = config.user;
+                        this.password = new Hash(config.password);
                     }
                 });
             }
@@ -274,7 +277,6 @@ export class IniData {
         let contentBuf = fs.readFileSync(file, 'utf8');
         let contentStr = contentBuf.toString();
         let lines = contentStr.split(os.EOL);
-        let pw_changed = false;
         if(INI_CONN_PART === lines[0]) {
             for(let i=1; i<lines.length; i++) {
                 // hash values doesn't contain '=',
@@ -297,22 +299,9 @@ export class IniData {
                         case 'password':
                             // empty passwords are not hashed in janus
                             if(line[1].length > 0) {
-                                this.hash = crypt_md5(line[1], CRYPTMD5_SALT);
-                                pw_changed = true;
+                                this.password = new Hash(line[1]);
                             }
                             break;
-                        case 'hash':
-                            if(!pw_changed) {
-                                this.hash = new Hash(line[1]);
-                            }
-                            break;
-                        // case 'localpath':
-                        //     if(INI_PATH === line[1]) {
-                        //         this.localpath = dirname(this.iniFile);
-                        //     } else {
-                        //         this.localpath = line[1];
-                        //     }
-                        //     break;
                         case '':
                             console.log('empty line');
                             break;
@@ -327,20 +316,18 @@ export class IniData {
 
 
 
-    async writeIniFile(): Promise<void> {
-        console.log('IniData.writeIniFile');
-        let data = '';
-        data += INI_CONN_PART + os.EOL;
-        data += 'server=' + this.server + os.EOL;
-        data += 'port=' + this.port + os.EOL;
-        data += 'principal=' + this.principal + os.EOL;
-        data += 'user=' + this.user + os.EOL;
-        data += 'password=' + os.EOL;
-        if(this.hash) {
-            data += 'hash=' + this.hash.value + os.EOL;
-        }
-        return this.writeConfigFile(data, false);
-    }
+    // async writeIniFile(): Promise<void> {
+    //     console.log('IniData.writeIniFile');
+    //     let data = '';
+    //     data += INI_CONN_PART + os.EOL;
+    //     data += 'server=' + this.server + os.EOL;
+    //     data += 'port=' + this.port + os.EOL;
+    //     data += 'principal=' + this.principal + os.EOL;
+    //     data += 'user=' + this.user + os.EOL;
+    //     data += 'password=' + this.password + os.EOL;
+    //     return this.writeConfigFile(data, false);
+    // }
+    
 
     async writeLaunchJson(): Promise<void> {
         console.log('IniData.writeLaunchJson');
@@ -348,9 +335,10 @@ export class IniData {
         initialConfigurations.forEach((config: any) => {
             if (config.request == 'launch') {
                 config.host = this.server;
-                config.port = this.port;
+                config.applicationPort = this.port;
                 config.principal = this.principal;
                 config.user = this.user;
+                config.password = this.password;
             }
         });
 
@@ -361,7 +349,8 @@ export class IniData {
             '{',
             '\t// Use IntelliSense to learn about possible configuration attributes.',
             '\t// Hover to view descriptions of existing attributes.',
-            '\t// For more information, visit: https://lalala',
+            '\t// For more information, visit',
+            '\t// https://github.com/otris/vscode-janus-debug/wiki/Launching-the-Debugger',
             '\t"version": "0.2.0",',
             '\t"configurations": ' + configurations,
             '}',
@@ -399,7 +388,7 @@ export class IniData {
 
             } else {
                 let _path: string = path.join(rootPath, '.vscode');
-                let file = path.join(_path, json?LAUNCH_JSON_NAME:INI_DEFAULT_NAME);
+                let file = path.join(_path, json? LAUNCH_JSON_NAME: INI_DEFAULT_NAME);
 
                 fs.writeFile(file, data, {encoding: 'utf8'}, function(error) {
                     if(error) {

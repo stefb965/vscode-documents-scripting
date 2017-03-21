@@ -12,6 +12,7 @@ import * as config from './config';
 
 
 const open = require('open');
+const urlExists = require('url-exists');
 
 
 type script = {name, souceCode};
@@ -130,83 +131,89 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('extension.viewDocumentation', (file) => {
             // file is not used, use active editor...
 
-            // current editor
-            const editor = vscode.window.activeTextEditor;
-            if(!editor || !vscode.workspace.rootPath) {
-                return;
-            }
-
-            // skip import lines
-            var cnt = 0;
-            var currline:string = editor.document.lineAt(cnt).text;
-            while(currline.startsWith('import')) {
-                cnt ++;
-                currline = editor.document.lineAt(cnt).text;
-            }
-
-            // first line after import should look like "export class Context {"
-            var _words = currline.split(' ');
-            if(_words.length != 4 || _words[0] !== 'export' || _words[1] !== 'class' || _words[3] != '{') {
-                return;
-            }
-
-
-            var classname = _words[2];
-
-            // the Position object gives you the line and character where the cursor is
-            const pos = editor.selection.active;
-            if(!pos) {
-                return;
-            }
-            const line = editor.document.lineAt(pos.line).text;
-            const words = line.split(' ');
-            var member = '';
-
-            if(words[0].trim() === 'public') {
-                member = words[1].trim();
-                var brace = member.indexOf('(');
-                if(brace >= 0) {
-                    member = member.substr(0, brace);
-                }
-            }
-
-            const jsFileName = 'class' + classname + '.js';
-            const htmlFileName = 'class' + classname + '.html';
-            const jsFilePath = path.join(vscode.workspace.rootPath, 'mapping', jsFileName);
-
-            fs.readFile(jsFilePath, (err, data) => {
-
-                // 'https://jenkins.otris.de/job/Dokumentation-Build/javadoc/api/portalscript/'
-                let portalscriptdocu = 'http://doku.otris.de/api/portalscript/';
-                var browser = 'firefox';
-                if(err || !data) {
-                    var page = portalscriptdocu + htmlFileName;
-                    open(page, browser);
-
+            let portalscriptdocu = 'http://doku.otris.de/api/portalscript/';
+            urlExists(portalscriptdocu, function(err, exists) {
+                if(!exists) {
+                    vscode.window.showInformationMessage('View Otris Documentation is not yet available!');
                 } else {
-                    // \r was missing in the generated files
-                    var lines = data.toString().split("\n");
 
-                    for(var i=2; i<lines.length-1; i++) {
-                        var entries = lines[i].split(',');
-                        if(entries.length < 2) {
-                            continue;
+                    // current editor
+                    const editor = vscode.window.activeTextEditor;
+                    if(!editor || !vscode.workspace.rootPath) {
+                        return;
+                    }
+
+                    // skip import lines
+                    var cnt = 0;
+                    var currline:string = editor.document.lineAt(cnt).text;
+                    while(currline.startsWith('import')) {
+                        cnt ++;
+                        currline = editor.document.lineAt(cnt).text;
+                    }
+
+                    // first line after import should look like "export class Context {"
+                    var _words = currline.split(' ');
+                    if(_words.length != 4 || _words[0] !== 'export' || _words[1] !== 'class' || _words[3] != '{') {
+                        return;
+                    }
+
+
+                    var classname = _words[2];
+
+                    // the Position object gives you the line and character where the cursor is
+                    const pos = editor.selection.active;
+                    if(!pos) {
+                        return;
+                    }
+                    const line = editor.document.lineAt(pos.line).text;
+                    const words = line.split(' ');
+                    var member = '';
+
+                    if(words[0].trim() === 'public') {
+                        member = words[1].trim();
+                        var brace = member.indexOf('(');
+                        if(brace >= 0) {
+                            member = member.substr(0, brace);
                         }
-                        // entries[0] looks like: "     [ "clientId""
-                        var entry = entries[0].replace('[','').replace(/"/g,'').trim();
+                    }
 
-                        if(entry === member) {
-                            // entries[1] looks like: "  "classContext.html#a6d644a063ace489a2893165bb3856579""
-                            var link = entries[1].replace(/"/g,'').trim();
-                            var page = portalscriptdocu + link;
+                    const jsFileName = 'class' + classname + '.js';
+                    const htmlFileName = 'class' + classname + '.html';
+                    const jsFilePath = path.join(vscode.workspace.rootPath, 'mapping', jsFileName);
+
+                    fs.readFile(jsFilePath, (err, data) => {
+
+                        var browser = 'firefox';
+                        if(err || !data) {
+                            var page = portalscriptdocu + htmlFileName;
                             open(page, browser);
-                            break;
+
+                        } else {
+                            // \r was missing in the generated files
+                            var lines = data.toString().split("\n");
+
+                            for(var i=2; i<lines.length-1; i++) {
+                                var entries = lines[i].split(',');
+                                if(entries.length < 2) {
+                                    continue;
+                                }
+                                // entries[0] looks like: "     [ "clientId""
+                                var entry = entries[0].replace('[','').replace(/"/g,'').trim();
+
+                                if(entry === member) {
+                                    // entries[1] looks like: "  "classContext.html#a6d644a063ace489a2893165bb3856579""
+                                    var link = entries[1].replace(/"/g,'').trim();
+                                    var page = portalscriptdocu + link;
+                                    open(page, browser);
+                                    break;
+                                }
+                            }
+                            if(i === lines.length-1) {
+                                var page = portalscriptdocu + htmlFileName;
+                                open(page, browser);
+                            }
                         }
-                    }
-                    if(i === lines.length-1) {
-                        var page = portalscriptdocu + htmlFileName;
-                        open(page, browser);
-                    }
+                    });
                 }
             });
         })
@@ -241,7 +248,7 @@ export function activate(context: vscode.ExtensionContext) {
                         let title = 'Diff ' + filename;
                         vscode.commands.executeCommand('vscode.diff', lefturi, righturi, title).then(() => {
                         }, (reason) => {
-                            vscode.window.showInformationMessage('Diff is not yet available!');
+                            vscode.window.showInformationMessage('View Diff is not yet available!');
                         });
                     }
                 }
@@ -333,14 +340,18 @@ async function askForDownloadPath(parampath?: string): Promise<string> {
             }).then((_path) => {
                 if(_path) {
                     if(!_path.startsWith(rootPath)) {
-                        reject();
-                        vscode.window.showErrorMessage('Path is not a subfolder');
+                        if(_path.startsWith(path.sep)) {
+                            resolve(path.join(vscode.workspace.rootPath, _path));
+                        } else {
+                            vscode.window.showErrorMessage('Path is not a subfolder');
+                            reject();
+                        }
                     } else {
                         resolve(_path);
                     }
                 } else {
-                    reject();
                     vscode.window.showErrorMessage('Input download path cancelled: command cannot be executed');
+                    reject();
                 }
             });
         }
@@ -631,7 +642,6 @@ async function downloadScript(sdsConnection: SDSConnection, scriptName: string, 
 
 
                 let scriptPath = path.join(parampath, scriptName + ".js");
-                // let scriptPath = parampath + sep + scriptName + ".js";
                 fs.writeFile(scriptPath, scriptSource[0], {encoding: 'utf8'}, function(error) {
                     if(error) {
                         if(error.code === "ENOENT") {
@@ -789,18 +799,7 @@ async function doLogin(sdsSocket: Socket): Promise<SDSConnection> {
                 username += "." + iniData.principal;
             }
 
-            // todo insert in SDS
-            type JanusPassword = '' | Hash;
-            // function getJanusPassword(val: string): JanusPassword {
-            //     if (val.length > 0)
-            //         return crypt_md5(val, 'saltysalty');
-            //     else
-            //         return '';
-            // };
-
-            // let pw: JanusPassword = getJanusPassword("bla"); //iniData.hash? iniData.hash: '';
-            let pw: JanusPassword = iniData.hash? iniData.hash: '';
-            return sdsConnection.changeUser(username, pw);
+            return sdsConnection.changeUser(username, iniData.password);
 
         }).then(userId => {
             console.log('changeUser successful');
