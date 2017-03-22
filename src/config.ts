@@ -254,7 +254,7 @@ export class IniData {
                         this.port = config.applicationPort;
                         this.principal = config.principal;
                         this.user = config.user;
-                        this.password = new Hash(config.password);
+                        this.password = config.password.value? new Hash(config.password.value): getJanusPassword(config.password);
                     }
                 });
             }
