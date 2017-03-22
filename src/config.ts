@@ -65,7 +65,7 @@ const initialConfigurations = [
 export const SERVER: string = 'localhost';
 export const PORT: number = 11000;
 export const PRINCIPAL: string = 'dopaag';
-export const USER: string = 'admin';
+export const USERNAME: string = 'admin';
 export const PASSWORD = '';
 
 export class IniData {
@@ -75,7 +75,7 @@ export class IniData {
     public server: string = '';
     public port: number = 0;
     public principal: string = '';
-    public user: string = '';
+    public username: string = '';
     public password: JanusPassword = '';
 
     public oc: vscode.OutputChannel;
@@ -89,7 +89,7 @@ export class IniData {
     //     this.server = '';
     //     this.port = 0;
     //     this.principal = '';
-    //     this.user = '';
+    //     this.username = '';
     //     this.hash = undefined;
     //     if(output) {
     //         vscode.window.setStatusBarMessage('Reset configuration');
@@ -97,7 +97,7 @@ export class IniData {
     // }
 
     public checkLoginData(): boolean {
-        if('' === this.server || 0  === this.port || '' === this.principal || '' === this.user) {
+        if('' === this.server || 0  === this.port || '' === this.principal || '' === this.username) {
             return false;
         }
         return true;
@@ -188,14 +188,14 @@ export class IniData {
                 if(principal) {
                     this.principal = principal;
                     return vscode.window.showInputBox({
-                        prompt: 'Please enter the user',
-                        value: this.user? this.user: USER,
+                        prompt: 'Please enter the username',
+                        value: this.username? this.username: USERNAME,
                         ignoreFocusOut: true,
                     });
                 }
-            }).then((user) => {
-                if(user) {
-                    this.user = user;
+            }).then((username) => {
+                if(username) {
+                    this.username = username;
                     return vscode.window.showInputBox({
                         prompt: 'Please enter the password',
                         value: PASSWORD,
@@ -253,7 +253,7 @@ export class IniData {
                         this.server = config.host;
                         this.port = config.applicationPort;
                         this.principal = config.principal;
-                        this.user = config.user;
+                        this.username = config.username;
                         this.password = config.password.value? new Hash(config.password.value): getJanusPassword(config.password);
                     }
                 });
@@ -294,7 +294,7 @@ export class IniData {
                             this.principal = line[1];
                             break;
                         case 'user':
-                            this.user = line[1];
+                            this.username = line[1];
                             break;
                         case 'password':
                             // empty passwords are not hashed in janus
@@ -323,7 +323,7 @@ export class IniData {
     //     data += 'server=' + this.server + os.EOL;
     //     data += 'port=' + this.port + os.EOL;
     //     data += 'principal=' + this.principal + os.EOL;
-    //     data += 'user=' + this.user + os.EOL;
+    //     data += 'user=' + this.username + os.EOL;
     //     data += 'password=' + this.password + os.EOL;
     //     return this.writeConfigFile(data, false);
     // }
@@ -337,7 +337,7 @@ export class IniData {
                 config.host = this.server;
                 config.applicationPort = this.port;
                 config.principal = this.principal;
-                config.user = this.user;
+                config.username = this.username;
                 config.password = this.password;
             }
         });

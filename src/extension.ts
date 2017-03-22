@@ -804,8 +804,8 @@ async function doLogin(sdsSocket: Socket): Promise<SDSConnection> {
 
         sdsConnection.connect('vscode-documents-scripting').then(() => {
             console.log('connect successful');
-            let username = iniData.user;
-            if('admin' !== iniData.user) {
+            let username = iniData.username;
+            if('admin' !== iniData.username) {
                 username += "." + iniData.principal;
             }
 
