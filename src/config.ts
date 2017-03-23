@@ -32,7 +32,7 @@ const initialConfigurations = [
         password: '',
         principal: '',
         host: 'localhost',
-        applicationPort: 10000,
+        applicationPort: 11000,
         debuggerPort: 8089,
         stopOnEntry: false,
         log: {
@@ -76,7 +76,7 @@ export class IniData {
     public port: number = 0;
     public principal: string = '';
     public username: string = '';
-    public password: JanusPassword = '';
+    public password: string = '';
 
     public oc: vscode.OutputChannel;
 
@@ -205,7 +205,7 @@ export class IniData {
                 }
             }).then((password) => {
                 if(password != undefined) {
-                    this.password = getJanusPassword(password);
+                    this.password = password;
                     resolve();
                 } else {
                     reject();
@@ -254,7 +254,7 @@ export class IniData {
                         this.port = config.applicationPort;
                         this.principal = config.principal;
                         this.username = config.username;
-                        this.password = config.password.value? new Hash(config.password.value): getJanusPassword(config.password);
+                        this.password = config.password;
                     }
                 });
             }
@@ -299,7 +299,7 @@ export class IniData {
                         case 'password':
                             // empty passwords are not hashed in janus
                             if(line[1].length > 0) {
-                                this.password = new Hash(line[1]);
+                                this.password = line[1];
                             }
                             break;
                         case '':

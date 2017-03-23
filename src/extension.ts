@@ -6,7 +6,7 @@ import * as os from 'os';
 import * as vscode from 'vscode';
 import { connect, Socket } from 'net';
 import * as reduce from 'reduce-for-promises';
-import { SDSConnection, Hash, crypt_md5 } from 'node-sds';
+import { SDSConnection, Hash, crypt_md5, getJanusPassword } from 'node-sds';
 import * as tsc from 'typescript-compiler';
 import * as config from './config';
 
@@ -809,7 +809,7 @@ async function doLogin(sdsSocket: Socket): Promise<SDSConnection> {
                 username += "." + iniData.principal;
             }
 
-            return sdsConnection.changeUser(username, iniData.password);
+            return sdsConnection.changeUser(username, getJanusPassword(iniData.password));
 
         }).then(userId => {
             console.log('changeUser successful');
