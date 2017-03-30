@@ -32,7 +32,7 @@ const OPERATION_UPLOAD:  string = 'uploadScript';
 
 // make new class and set as parameter
 let myOutputChannel: vscode.OutputChannel = vscode.window.createOutputChannel('MyChannelName');
-let iniData: config.IniData;
+let loginData: config.LoginData;
 let disposableOnSave: vscode.Disposable;
 
 
@@ -45,12 +45,12 @@ const DIFF_FOLDER = '_tmp';
 
 export function activate(context: vscode.ExtensionContext) {
 
-    iniData = new config.IniData(myOutputChannel);
-    if(!iniData) {
+    loginData = new config.LoginData(myOutputChannel);
+    if(!loginData) {
         myOutputChannel.append('Cannot activate vscode-documents-scripting');
         return;
     }
-    context.subscriptions.push(iniData);
+    context.subscriptions.push(loginData);
 
 
     // download all
@@ -102,8 +102,8 @@ export function activate(context: vscode.ExtensionContext) {
     // save configuration
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.saveConfiguration', () => {
-            if(iniData) {
-                iniData.inputProcedure();
+            if(loginData) {
+                loginData.inputProcedure();
             }
         })
     );
@@ -424,15 +424,15 @@ async function ensureScriptName(): Promise<string> {
 
 function connectAndCallOperation(operation: string, textDocument?: vscode.TextDocument, parampath?: string) {
 
-    if(!iniData) {
+    if(!loginData) {
         return;
     }
 
-    iniData.ensureLoginData().then(() => {
+    loginData.ensureLoginData().then(() => {
         console.log('ensureLoginData successful');
 
         // create socket
-        let sdsSocket = connect(iniData.port, iniData.server);
+        let sdsSocket = connect(loginData.port, loginData.server);
 
 
         // implement callback functions for the socket
@@ -473,7 +473,7 @@ function connectAndCallOperation(operation: string, textDocument?: vscode.TextDo
         sdsSocket.on('error', (err: any) => {
             console.log('callback socket.on(error)...');
             console.log(err);
-            vscode.window.showErrorMessage('failed to connect to host: ' + iniData.server + ' and port: ' + iniData.port);
+            vscode.window.showErrorMessage('failed to connect to host: ' + loginData.server + ' and port: ' + loginData.port);
         });
 
     }).catch((reason) => {
@@ -804,17 +804,17 @@ async function doLogin(sdsSocket: Socket): Promise<SDSConnection> {
 
         sdsConnection.connect('vscode-documents-scripting').then(() => {
             console.log('connect successful');
-            let username = iniData.username;
-            if('admin' !== iniData.username) {
-                username += "." + iniData.principal;
+            let username = loginData.username;
+            if('admin' !== loginData.username) {
+                username += "." + loginData.principal;
             }
 
-            return sdsConnection.changeUser(username, getJanusPassword(iniData.password));
+            return sdsConnection.changeUser(username, getJanusPassword(loginData.password));
 
         }).then(userId => {
             console.log('changeUser successful');
-            if (iniData.principal.length > 0) {
-                return sdsConnection.changePrincipal(iniData.principal);
+            if (loginData.principal.length > 0) {
+                return sdsConnection.changePrincipal(loginData.principal);
             } else {
                 reject('doLogin(): please set principal');
             }

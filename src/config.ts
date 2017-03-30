@@ -68,7 +68,7 @@ export const PRINCIPAL: string = 'dopaag';
 export const USERNAME: string = 'admin';
 export const PASSWORD = '';
 
-export class IniData {
+export class LoginData {
     // todo private + getter...
 
     // login data
