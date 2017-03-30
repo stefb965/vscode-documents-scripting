@@ -4,8 +4,7 @@ DOCUMENTS Scripting is an extension for the Source Code Editor Visual Studio Cod
 * Up- and downloading JavaScript files to and from a DOCUMENTS-Server.
 * Running JavaScript files on a DOCUMENTS-Server.
 
-Please note: This extension is still a prototype. Additional features like comparison of local scripts with scripts on the server or IntelliSense will be integrated soon. 
-Please use https://github.com/otris/vscode-documents-scripting/issues for submitting suggestions, wishes or bugs. 
+Please note: This extension is still a prototype. Additional features like comparison of local scripts with scripts on the server or IntelliSense will soon be integrated. Please refer to https://github.com/otris/vscode-documents-scripting/issues for submitting suggestions, wishes or bugs. 
 
 
 ## Requirements
