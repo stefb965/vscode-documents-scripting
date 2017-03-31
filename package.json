@@ -5,124 +5,139 @@
   "version": "1.0.4",
   "publisher": "otris-software",
   "author": {
-    "name": "otris software",
-    "email": "heller@otris.de"
+      "name": "otris software",
+      "email": "heller@otris.de"
   },
   "repository": {
-    "type": "git",
-    "url": "https://github.com/otris/vscode-documents-scripting"
+      "type": "git",
+      "url": "https://github.com/otris/vscode-documents-scripting"
   },
   "license": "MIT",
   "engines": {
-    "vscode": "^1.5.0"
+      "vscode": "^1.5.0"
   },
   "categories": [
-    "Other"
+      "Other"
   ],
   "activationEvents": [
-    "onCommand:extension.downloadAllScripts",
-    "onCommand:extension.downloadScript",
-    "onCommand:extension.uploadAllScripts",
-    "onCommand:extension.uploadScript",
-    "onCommand:extension.runScript",
-    "onCommand:extension.viewDocumentation",
-    "onCommand:extension.compareScript",
-    "onCommand:extension.saveConfiguration"
+      "onCommand:extension.downloadAllScripts",
+      "onCommand:extension.downloadScript",
+      "onCommand:extension.uploadAllScripts",
+      "onCommand:extension.uploadScript",
+      "onCommand:extension.runScript",
+      "onCommand:extension.viewDocumentation",
+      "onCommand:extension.compareScript",
+      "onCommand:extension.saveConfiguration"
   ],
   "main": "./out/src/extension",
   "contributes": {
-    "commands": [
-      {
-        "command": "extension.downloadAllScripts",
-        "title": "Download Scripts To Folder",
-        "category": "DOCUMENTS"
-      },
-      {
-        "command": "extension.downloadScript",
-        "title": "Download Script",
-        "category": "DOCUMENTS"
-      },
-      {
-        "command": "extension.uploadAllScripts",
-        "title": "Upload Scripts From Folder",
-        "category": "DOCUMENTS"
-      },
-      {
-        "command": "extension.uploadScript",
-        "title": "Upload Script",
-        "category": "DOCUMENTS"
-      },
-      {
-        "command": "extension.runScript",
-        "title": "Run Active Script",
-        "category": "DOCUMENTS"
-      },
-      {
-        "command": "extension.viewDocumentation",
-        "title": "View Documentation",
-        "category": "DOCUMENTS"
-      },
-      {
-        "command": "extension.compareScript",
-        "title": "View Diff",
-        "category": "DOCUMENTS"
-      },
-      {
-        "command": "extension.saveConfiguration",
-        "title": "Change And Save Configuration",
-        "category": "DOCUMENTS"
-      }
-    ],
-    "keybindings": [
-      {
-        "command": "extension.runScript",
-        "key": "Ctrl+Alt+R"
-      }
-    ],
-    "menus": {
-      "explorer/context": [
-        {
-          "command": "extension.uploadAllScripts"
-        },
-        {
-          "command": "extension.downloadAllScripts"
-        },
-        {
-          "command": "extension.compareScript"
-        }
+      "commands": [
+          {
+              "command": "extension.downloadAllScripts",
+              "title": "Download Scripts To Folder",
+              "category": "DOCUMENTS"
+          },
+          {
+              "command": "extension.downloadScript",
+              "title": "Download Script",
+              "category": "DOCUMENTS"
+          },
+          {
+              "command": "extension.uploadAllScripts",
+              "title": "Upload Scripts From Folder",
+              "category": "DOCUMENTS"
+          },
+          {
+              "command": "extension.uploadScript",
+              "title": "Upload Script",
+              "category": "DOCUMENTS"
+          },
+          {
+              "command": "extension.runScript",
+              "title": "Run Script",
+              "category": "DOCUMENTS"
+          },
+          {
+              "command": "extension.viewDocumentation",
+              "title": "View Documentation",
+              "category": "DOCUMENTS"
+          },
+          {
+              "command": "extension.compareScript",
+              "title": "View Diff",
+              "category": "DOCUMENTS"
+          },
+          {
+              "command": "extension.saveConfiguration",
+              "title": "Change And Save Configuration",
+              "category": "DOCUMENTS"
+          }
       ],
-      "editor/context": [
-        {
-          "command": "extension.viewDocumentation",
-          "when": "resourceLangId == typescript"
-        }
-      ]
-    }
+      "keybindings": [
+          {
+              "command": "extension.runScript",
+              "key": "Ctrl+Alt+R"
+          }
+      ],
+      "menus": {
+          "explorer/context": [
+              {
+                  "command": "extension.uploadAllScripts",
+                  "when": "resourceLangId == javascript"
+              },
+              {
+                  "command": "extension.downloadAllScripts",
+                  "when": "resourceLangId == javascript"
+              },
+              {
+                  "command": "extension.uploadScript",
+                  "when": "resourceLangId == javascript"
+              },
+              {
+                  "command": "extension.downloadScript",
+                  "when": "resourceLangId == javascript"
+              },
+              {
+                  "command": "extension.runScript",
+                  "when": "resourceLangId == javascript"
+              },
+              {
+                  "command": "extension.compareScript",
+                  "when": "resourceLangId == javascript"
+              }
+          ],
+          "editor/context": [
+              {
+                  "command": "extension.viewDocumentation",
+                  "when": "resourceLangId == typescript"
+              }
+          ]
+      }
   },
   "scripts": {
-    "vscode:prepublish": "tsc -p ./",
-    "compile": "tsc -p ./",
-    "postinstall": "node ./node_modules/vscode/bin/install",
-    "test": "node ./node_modules/vscode/bin/test",
-    "package": "vsce package"
+      "vscode:prepublish": "tsc -p ./",
+      "compile": "tsc -p ./",
+      "postinstall": "node ./node_modules/vscode/bin/install",
+      "test": "node ./node_modules/vscode/bin/test",
+      "package": "vsce package"
   },
   "devDependencies": {
-    "@types/mocha": "^2.2.32",
-    "@types/node": "^6.0.40",
-    "mocha": "^2.3.3",
-    "typescript": "^2.2.1",
-    "vscode": "^1.0.0"
+      "@types/mocha": "^2.2.32",
+      "@types/node": "^6.0.40",
+      "mocha": "^2.3.3",
+      "typescript": "^2.2.1",
+      "vscode": "^1.0.0"
   },
   "dependencies": {
-    "fs": "0.0.1-security",
-    "net": "^1.0.2",
-    "node-sds": "git+https://git@github.com/otris/node-sds.git",
-    "open": "0.0.5",
-    "path": "^0.12.7",
-    "reduce-for-promises": "^1.2.1",
-    "strip-json-comments": "^2.0.1",
-    "typescript-compiler": "^1.4.1-2",
-    "url-exists": "^1.0.3",
-    "vsce": "^1.18.0"
+      "fs": "0.0.1-security",
+      "net": "^1.0.2",
+      "node-sds": "git+https://git@github.com/otris/node-sds.git",
+      "open": "0.0.5",
+      "path": "^0.12.7",
+      "reduce-for-promises": "^1.2.1",
+      "strip-json-comments": "^2.0.1",
+      "typescript-compiler": "^1.4.1-2",
+      "url-exists": "^1.0.3",
+      "vsce": "^1.18.0"
   }
 }
