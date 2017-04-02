@@ -86,8 +86,16 @@
                   "when": "resourceLangId == javascript"
               },
               {
+                  "command": "extension.uploadAllScripts",
+                  "when": "isFolder"
+              },
+              {
                   "command": "extension.downloadAllScripts",
                   "when": "resourceLangId == javascript"
+              },
+              {
+                  "command": "extension.downloadAllScripts",
+                  "when": "isFolder"
               },
               {
                   "command": "extension.uploadScript",
