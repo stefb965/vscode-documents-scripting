@@ -348,7 +348,7 @@ async function ensurePath(parampath?: string): Promise<string> {
                 });
             }
         } else {
-            
+
             // ask for path
             let defaultPath = getActivePath();
             vscode.window.showInputBox({
@@ -370,10 +370,18 @@ async function ensurePath(parampath?: string): Promise<string> {
                                         let newfolder = p.pop();
                                         let _inputpath = p.join(path.sep);
                                         fs.stat(_inputpath, function (err, stats) {
-                                            if(stats.isDirectory()) {
-                                                resolve(path.join(_inputpath, newfolder));
+                                            if(err) {
+                                                if('ENOENT' === err.code) {
+                                                    reject('can only create one subfolder');
+                                                } else {
+                                                    reject('error in ' + inputpath + ': ' + err.message);
+                                                }
                                             } else {
-                                                reject('can only create on subfolder');
+                                                if(stats.isDirectory()) {
+                                                    resolve(path.join(_inputpath, newfolder));
+                                                } else {
+                                                    reject('can only create one subfolder');
+                                                }
                                             }
                                         });
                                     } else {
@@ -395,7 +403,7 @@ async function ensurePath(parampath?: string): Promise<string> {
                         if(0 > inputpath.indexOf(path.sep)) {
                             resolve(path.join(vscode.workspace.rootPath, inputpath));
                         } else {
-                            reject('can only create on subfolder');
+                            reject('can only create one subfolder');
                         }
                     }
                 } else {
