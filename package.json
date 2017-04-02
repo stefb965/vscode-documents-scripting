@@ -87,7 +87,7 @@
               },
               {
                   "command": "extension.uploadAllScripts",
-                  "when": "isFolder"
+                  "when": "!resourceLangId"
               },
               {
                   "command": "extension.downloadAllScripts",
@@ -95,7 +95,7 @@
               },
               {
                   "command": "extension.downloadAllScripts",
-                  "when": "isFolder"
+                  "when": "!resourceLangId"
               },
               {
                   "command": "extension.uploadScript",

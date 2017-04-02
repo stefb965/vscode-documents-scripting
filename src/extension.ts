@@ -305,18 +305,19 @@ function onDidSaveScript(textDocument: vscode.TextDocument) {
 
 
 function getActivePath(): string {
-    console.log('IniData.getActivePath');
+    console.log('getActivePath');
 
-    // first check current opened file?
+    // file open?
     let editor = vscode.window.activeTextEditor;
-    if (editor && editor.document) {
-        let file = editor.document.fileName;
-        const parsedPath = path.parse(file);
-        return parsedPath.dir;
+    if (editor) {
+        return path.dirname(editor.document.fileName);
+
+    // root path?
+    } else if(vscode.workspace) {
+        return vscode.workspace.rootPath;
     }
 
-    // if there's no file, return opened folder path
-    return vscode.workspace.rootPath;
+    return '';
 }
 
 
@@ -326,42 +327,79 @@ async function ensurePath(parampath?: string): Promise<string> {
     console.log('ensureDownloadPath');
 
     return new Promise<string>((resolve, reject) => {
-        let rootPath = vscode.workspace? vscode.workspace.rootPath:'';
 
-        // check given path
+        // given path must be absolute
         if(parampath && path.isAbsolute(parampath)) {
-            let _path = parampath;
-            if(path.extname(parampath)) {
-                _path = path.dirname(parampath);
-            }
-            if(rootPath && !_path.startsWith(rootPath)) {
-                reject(_path + ' is not a subfolder of ' + rootPath);
+
+            // if there's a workspace, returned path must be a subfolder of rootPath
+            if(vscode.workspace && !parampath.startsWith(vscode.workspace.rootPath)) {
+                reject(parampath + ' is not a subfolder of ' + vscode.workspace.rootPath);
+            
             } else {
-                resolve(_path);
+
+                // return path of given file or folder
+                fs.stat(parampath, function (err, stats) {
+                    if(stats.isDirectory()) {
+                        resolve(parampath);
+                    }
+                    if(stats.isFile()) {
+                        resolve(path.dirname(parampath));
+                    }
+                });
             }
-
-
-        // get active path
         } else {
-            let activePath = getActivePath();
-            let defaultPath: string = activePath? activePath: rootPath;
+            
+            // ask for path
+            let defaultPath = getActivePath();
             vscode.window.showInputBox({
                 prompt: 'Please enter the download path',
                 value: defaultPath,
                 ignoreFocusOut: true,
-            }).then((_path) => {
-                if(_path) {
-                    if(rootPath && !_path.startsWith(rootPath)) {
-                        if(_path.startsWith(path.sep)) {
-                            resolve(path.join(vscode.workspace.rootPath, _path));
+            }).then((inputpath) => {
+                if(inputpath) {
+                    if(path.isAbsolute(inputpath)) {
+                        
+                        // if there's a workspace, returned path must be subfolder of rootPath
+                        if(vscode.workspace && !inputpath.startsWith(vscode.workspace.rootPath)) {
+                            reject(inputpath + ' is not a subfolder of ' + vscode.workspace.rootPath);
                         } else {
-                            reject(_path + ' is not a subfolder of ' + rootPath);
+                            fs.stat(inputpath, function (err, stats) {
+                                if(err) {
+                                    if('ENOENT' === err.code) {
+                                        let p = inputpath.split(path.sep);
+                                        let newfolder = p.pop();
+                                        let _inputpath = p.join(path.sep);
+                                        fs.stat(_inputpath, function (err, stats) {
+                                            if(stats.isDirectory()) {
+                                                resolve(path.join(_inputpath, newfolder));
+                                            } else {
+                                                reject('can only create on subfolder');
+                                            }
+                                        });
+                                    } else {
+                                        reject('error in ' + inputpath + ': ' + err.message);
+                                    }
+                                } else {
+                                    if(stats.isDirectory()) {
+                                        resolve(inputpath);
+                                    } else if(stats.isFile()) {
+                                        resolve(path.dirname(inputpath));
+                                    } else {
+                                        // shouldn't happen
+                                        reject('unexpected error: input is neither path nor file');
+                                    }
+                                }
+                            });
                         }
                     } else {
-                        resolve(_path);
+                        if(0 > inputpath.indexOf(path.sep)) {
+                            resolve(path.join(vscode.workspace.rootPath, inputpath));
+                        } else {
+                            reject('can only create on subfolder');
+                        }
                     }
                 } else {
-                    reject('Path missing: command cannot be executed');
+                    reject('path is missing: command cannot be executed');
                 }
             });
         }

@@ -50,12 +50,12 @@ export function documentsSession(loginData: config.LoginData, param: any[]) {
                 
                 // call switchOperation() and then close the connection in any case
                 documentsOperation(sdsConnection, param).then(() => {
-                    doLogout(sdsConnection).catch((reason) => {
+                    closeConnection(sdsConnection).catch((reason) => {
                         console.log(reason);
                     });
                 }).catch((reason) => {
                     console.log(reason);
-                    doLogout(sdsConnection); // => check socket-on-close
+                    closeConnection(sdsConnection); // => check socket-on-close
                 });
 
             }).catch((reason) => {
@@ -115,7 +115,7 @@ export async function doLogin(loginData: config.LoginData, sdsSocket: Socket): P
 
         }).catch((reason) => {
             reject('doLogin() failed: ' + reason);
-            doLogout(sdsConnection).catch((reason) => {
+            closeConnection(sdsConnection).catch((reason) => {
                 console.log(reason);
             });
         });
@@ -123,12 +123,12 @@ export async function doLogin(loginData: config.LoginData, sdsSocket: Socket): P
 }
 
 
-export async function doLogout(sdsConnection: SDSConnection): Promise<void> {
+export async function closeConnection(sdsConnection: SDSConnection): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         sdsConnection.disconnect().then(() => {
             resolve();
         }).catch((reason) => {
-            reject("doLogout: " + reason);
+            reject("closeConnection: " + reason);
         });
     });
 }
