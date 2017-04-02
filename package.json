@@ -108,6 +108,18 @@
           ],
           "editor/context": [
               {
+                  "command": "extension.uploadScript",
+                  "when": "resourceLangId == javascript"
+              },
+              {
+                  "command": "extension.downloadScript",
+                  "when": "resourceLangId == javascript"
+              },
+              {
+                  "command": "extension.runScript",
+                  "when": "resourceLangId == javascript"
+              },
+              {
                   "command": "extension.viewDocumentation",
                   "when": "resourceLangId == typescript"
               }
