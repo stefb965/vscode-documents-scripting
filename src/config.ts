@@ -78,23 +78,6 @@ export class LoginData {
     public username: string = '';
     public password: string = '';
 
-    public oc: vscode.OutputChannel;
-
-
-    constructor (oc: vscode.OutputChannel) {
-        this.oc = oc;
-    }
-
-    // public clearAllData(output = false) {
-    //     this.server = '';
-    //     this.port = 0;
-    //     this.principal = '';
-    //     this.username = '';
-    //     this.hash = undefined;
-    //     if(output) {
-    //         vscode.window.setStatusBarMessage('Reset configuration');
-    //     }
-    // }
 
     public checkLoginData(): boolean {
         if('' === this.server || 0  === this.port || '' === this.principal || '' === this.username) {
@@ -142,8 +125,6 @@ export class LoginData {
                     vscode.window.setStatusBarMessage('Saved login data');
                     resolve();
                 }).catch((reason) => {
-                    this.oc.append('Error: cannot save configuration: ' + reason);
-                    this.oc.show();
                     resolve();
                 });
                 resolve();
