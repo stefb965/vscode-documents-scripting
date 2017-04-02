@@ -15,7 +15,6 @@ const open = require('open');
 const urlExists = require('url-exists');
 
 
-type script = {name: string, sourceCode: string};
 
 
 let loginData: config.LoginData;
@@ -265,21 +264,21 @@ export function deactivate() {
 
 
 
-const QUICKPICK_UPLOAD:  string = 'Upload script to Server?';
-const QUICKPICK_COMPILE: string = 'Compile and upload javascript to Server?';
-const QUICKPICK_CANCEL:  string = 'Not now';
-const QUICKPICK_NEVER:   string = 'Never in this session';
 
 // load script automatically when script is saved
 function onDidSaveScript(textDocument: vscode.TextDocument) {
+    const UPLOAD:  string = 'Upload script to Server?';
+    const COMPILE: string = 'Compile and upload javascript to Server?';
+    const CANCEL:  string = 'Not now';
+    const NEVER:   string = 'Never in this session';
 
     // javascript files
     if('.js' === path.extname(textDocument.fileName)) {
-        vscode.window.showQuickPick([QUICKPICK_UPLOAD, QUICKPICK_CANCEL, QUICKPICK_NEVER]).then((value) => {
-            if(QUICKPICK_UPLOAD === value) {
+        vscode.window.showQuickPick([UPLOAD, CANCEL, NEVER]).then((value) => {
+            if(UPLOAD === value) {
                 sdsAccess.documentsSession(loginData, ['uploadScript', textDocument]);
             }
-            if(QUICKPICK_NEVER === value) {
+            if(NEVER === value) {
                 disposableOnSave.dispose();
             }
         });
@@ -290,11 +289,11 @@ function onDidSaveScript(textDocument: vscode.TextDocument) {
     // todo
     // typescript files
     if(textDocument.fileName.endsWith(".ts")) {
-    //     vscode.window.showQuickPick([QUICKPICK_COMPILE, QUICKPICK_CANCEL, QUICKPICK_NEVER]).then((value) => {
-    //         if(QUICKPICK_COMPILE === value) {
+    //     vscode.window.showQuickPick([COMPILE, CANCEL, NEVER]).then((value) => {
+    //         if(COMPILE === value) {
     //             connectAndCallOperation('uploadScript', textDocument);
     //         }
-    //         if(QUICKPICK_NEVER === value) {
+    //         if(NEVER === value) {
     //             disposableOnSave.dispose();
     //         }
     //     });
@@ -399,30 +398,16 @@ async function ensureScriptName(paramscript?: string): Promise<string> {
     });
 }
 
-function getScript(file: string): script {
-    let s: script;
-    if(file && path.isAbsolute(file) && '.js' === path.extname(file)) {
-        try {
-            let sc = fs.readFileSync(file, 'utf8');
-            let _name = path.basename(file, '.js');
-            s = {name: _name, sourceCode: sc};
-            //console.log('script added: ' + _name);
-        } catch(err) {
-            console.log('catch in readFileSync: ' + err);
-        }
-    }
-    return s;
-}
 
 
 
-async function ensureScript(param?: string | vscode.TextDocument): Promise<script> {
+async function ensureScript(param?: string | vscode.TextDocument): Promise<sdsAccess.script> {
     console.log('ensureScript');
-    return new Promise<script>((resolve, reject) => {
+    return new Promise<sdsAccess.script>((resolve, reject) => {
 
         if(param) {
             if(typeof param === 'string') {
-                let ret: script = getScript(param);
+                let ret: sdsAccess.script = sdsAccess.getScript(param);
                 if(ret) {
                     resolve(ret);
                 } else {
@@ -430,7 +415,7 @@ async function ensureScript(param?: string | vscode.TextDocument): Promise<scrip
                 }
 
             } else { // vscode.TextDocument
-                let ret: script = {
+                let ret: sdsAccess.script = {
                     name: path.basename(param.fileName, '.js'),
                     sourceCode: param.getText()
                 };
@@ -448,7 +433,7 @@ async function ensureScript(param?: string | vscode.TextDocument): Promise<scrip
                 ignoreFocusOut: true,
             }).then((_scriptname) => {
                 if(_scriptname) {
-                    let ret: script = getScript(_scriptname);
+                    let ret: sdsAccess.script = sdsAccess.getScript(_scriptname);
                     if(ret) {
                         resolve(ret);
                     } else {
@@ -463,28 +448,34 @@ async function ensureScript(param?: string | vscode.TextDocument): Promise<scrip
     });
 }
 
-function typeCheck_paramScript(param): boolean {
-    if(undefined === param) {
+function documentsOperation_typeCheck(param: any[]): boolean {
+    
+    if('string' !== typeof param[0]) {
+        return false;
+    }
+
+    if(undefined === param[1]) {
         return true;
-    } else if('string' === typeof param) {
+    } else if('string' === typeof param[1]) {
         return true;
     // todo check vscode.TextDocument (Interface)
-    } else if(param.fileName !== undefined && param.isUntitled !== undefined) {
+    } else if(param[1].fileName !== undefined && param[1].isUntitled !== undefined) {
         return true;
     }
+
     return false;
 }
 
 async function documentsOperation(sdsConnection: SDSConnection, param: any[]): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-        if('string' === typeof param[0] && typeCheck_paramScript(param[1])) {
+        if(documentsOperation_typeCheck(param)) {
             switchOperation(sdsConnection, param[0], param[1]).then(() => {
                 resolve();
             }).catch((reason) => {
                 reject();
             });
         } else {
-            reject('wrong type of parameter');
+            reject('incorrect parameter type');
         }
     });
 }
@@ -512,26 +503,6 @@ async function switchOperation(sdsConnection: SDSConnection,
                     vscode.window.showErrorMessage('upload script failed: ' + reason);
                     reject();
                 });
-            });
-        }
-
-
-
-        else if('downloadAllScripts' === operation) {
-            ensurePath(paramstr).then((_path) => {
-                return sdsAccess.getScriptNamesFromServer(sdsConnection).then((scriptNames) => {
-                    return reduce(scriptNames, function(numscripts, name) {
-                        return sdsAccess.downloadScript(sdsConnection, name, _path).then(() => {
-                            return numscripts + 1;
-                        });
-                    }, 0).then((numscripts) => {
-                        vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
-                        resolve();
-                    });
-                });
-            }).catch((reason) => {
-                vscode.window.showErrorMessage('download all failed: ' + reason);
-                reject();
             });
         }
 
@@ -576,15 +547,9 @@ async function switchOperation(sdsConnection: SDSConnection,
 
         else if('uploadAllScripts' === operation) {
             ensurePath(paramstr).then((folder) => {
-                return getScriptsFromFolder(folder).then((scripts) => {
-                    return reduce(scripts, function(numscripts, _script) {
-                        return sdsAccess.uploadScript(sdsConnection, _script.name, _script.sourceCode).then(() => {
-                            return numscripts + 1;
-                        });
-                    }, 0).then((numscripts) => {
-                        vscode.window.setStatusBarMessage('uploaded ' + numscripts + ' scripts');
-                        resolve();
-                    });
+                return sdsAccess.uploadAll(sdsConnection, folder).then((numscripts) => {
+                    vscode.window.setStatusBarMessage('uploaded ' + numscripts + ' scripts');
+                    resolve();
                 });
             }).catch((reason) => {
                 vscode.window.showErrorMessage('upload all failed: ' + reason);
@@ -592,6 +557,24 @@ async function switchOperation(sdsConnection: SDSConnection,
             });
         }
 
+
+        else if('downloadAllScripts' === operation) {
+            ensurePath(paramstr).then((_path) => {
+                return sdsAccess.getScriptNamesFromServer(sdsConnection).then((scriptNames) => {
+                    return reduce(scriptNames, function(numscripts, name) {
+                        return sdsAccess.downloadScript(sdsConnection, name, _path).then(() => {
+                            return numscripts + 1;
+                        });
+                    }, 0).then((numscripts) => {
+                        vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
+                        resolve();
+                    });
+                });
+            }).catch((reason) => {
+                vscode.window.showErrorMessage('download all failed: ' + reason);
+                reject();
+            });
+        }
 
 
         // else if...
@@ -608,39 +591,6 @@ async function switchOperation(sdsConnection: SDSConnection,
 
 
 
-
-async function getScriptsFromFolder(_path: string): Promise<script[]> {
-    return new Promise<script[]>((resolve, reject) => {
-    
-        let scripts : script[] = [];
-
-        fs.readdir(_path, function (err, files) {
-            if (err) {
-                console.log('err in readdir: ' + err);
-                reject();
-            }
-            if (!files) {
-                console.log('err in readdir: ' + err);
-                reject();
-            }
-
-            files.map(function (file) {
-                return path.join(_path, file);
-            }).filter(function (file) {
-                return fs.statSync(file).isFile();
-            }).forEach(function (file) {
-                if('.js' === path.extname(file)) {
-                    let s = getScript(file);
-                    if(s) {
-                        scripts.push(s);
-                    }
-                }
-            });
-
-            resolve(scripts);
-        });
-    });
-}
 
 
 

@@ -1,9 +1,13 @@
 ﻿import * as fs from 'fs';
 import * as path from 'path';
 import { connect, Socket } from 'net';
+import * as reduce from 'reduce-for-promises';
 
 import { SDSConnection, Hash, crypt_md5, getJanusPassword } from 'node-sds';
 import * as config from './config';
+
+
+export type script = {name: string, sourceCode: string};
 
 const SDS_TIMEOUT: number = 60 * 1000;
 
@@ -143,6 +147,70 @@ export async function getScriptNamesFromServer(sdsConnection: SDSConnection): Pr
         });
     });
 }
+
+export function getScript(file: string): script {
+    let s: script;
+    if(file && path.isAbsolute(file) && '.js' === path.extname(file)) {
+        try {
+            let sc = fs.readFileSync(file, 'utf8');
+            let _name = path.basename(file, '.js');
+            s = {name: _name, sourceCode: sc};
+            //console.log('script added: ' + _name);
+        } catch(err) {
+            console.log('catch in readFileSync: ' + err);
+        }
+    }
+    return s;
+}
+
+
+export async function getScriptsFromFolder(_path: string): Promise<script[]> {
+    return new Promise<script[]>((resolve, reject) => {
+    
+        let scripts : script[] = [];
+
+        fs.readdir(_path, function (err, files) {
+            if (err) {
+                console.log('err in readdir: ' + err);
+                reject();
+            }
+            if (!files) {
+                console.log('err in readdir: ' + err);
+                reject();
+            }
+
+            files.map(function (file) {
+                return path.join(_path, file);
+            }).filter(function (file) {
+                return fs.statSync(file).isFile();
+            }).forEach(function (file) {
+                if('.js' === path.extname(file)) {
+                    let s = getScript(file);
+                    if(s) {
+                        scripts.push(s);
+                    }
+                }
+            });
+
+            resolve(scripts);
+        });
+    });
+}
+
+export async function uploadAll(sdsConnection: SDSConnection, folder: string): Promise<number> {
+    return new Promise<number>((resolve, reject) => {
+        return getScriptsFromFolder(folder).then((scripts) => {
+            return reduce(scripts, function(numscripts, _script) {
+                return uploadScript(sdsConnection, _script.name, _script.sourceCode).then(() => {
+                    return numscripts + 1;
+                });
+            }, 0).then((numscripts) => {
+                resolve(numscripts);
+            });
+        });
+    });
+}
+
 
 export async function downloadScript(sdsConnection: SDSConnection, scriptName: string, parampath: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
