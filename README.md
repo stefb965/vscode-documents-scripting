@@ -15,6 +15,17 @@ You need a DOCUMENTS 5.0b server.
 
 You'll find a complete list of changes at our project site on [GitHub](https://github.com/otris/vscode-documents-scripting).
 
+### 1.0.4
+
+Initial public version.
+
+### 1.0.5
+
+* Extend context menu entries.
+* Improved error handling.
+
+## Known Issues
+
 
 ## Troubleshooting
 

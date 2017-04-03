@@ -17,14 +17,10 @@ const urlExists = require('url-exists');
 
 
 
-let loginData: config.LoginData;
-
-
 
 
 // todo
 let myOutputChannel: vscode.OutputChannel = vscode.window.createOutputChannel('MyChannelName');
-let disposableOnSave: vscode.Disposable;
 
 
 // hack
@@ -40,10 +36,10 @@ export function activate(context: vscode.ExtensionContext) {
     // set up...
 
     // object loginData should be deleted on deactivation
-    loginData = new config.LoginData();
+    let loginData: config.LoginData = new config.LoginData();
     context.subscriptions.push(loginData);
 
-    sdsAccess.setDocumentsOperation((sdsConnection: SDSConnection, param: any[]) => documentsOperation(sdsConnection, param));
+    sdsAccess.setServerOperation((sdsConnection: SDSConnection, param: any[]) => documentsOperation(sdsConnection, param));
 
 
 
@@ -54,9 +50,9 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.downloadAllScripts', (param) => {
             if(param) {
-                sdsAccess.documentsSession(loginData, ["downloadAllScripts", param._fsPath]);
+                sdsAccess.sdsSession(loginData, ["downloadAllScripts", param._fsPath]);
             } else {
-                sdsAccess.documentsSession(loginData, ["downloadAllScripts"]);
+                sdsAccess.sdsSession(loginData, ["downloadAllScripts"]);
             }
         })
     );
@@ -65,9 +61,9 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.downloadScript', (param) => {
             if(param) {
-                sdsAccess.documentsSession(loginData, ["downloadScript", param._fsPath]);
+                sdsAccess.sdsSession(loginData, ["downloadScript", param._fsPath]);
             } else {
-                sdsAccess.documentsSession(loginData, ["downloadScript"]);
+                sdsAccess.sdsSession(loginData, ["downloadScript"]);
             }
         })
     );
@@ -76,9 +72,9 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.uploadAllScripts', (param) => {
             if(param) {
-                sdsAccess.documentsSession(loginData, ["uploadAllScripts", param._fsPath]);
+                sdsAccess.sdsSession(loginData, ["uploadAllScripts", param._fsPath]);
             } else {
-                sdsAccess.documentsSession(loginData, ["uploadAllScripts"]);
+                sdsAccess.sdsSession(loginData, ["uploadAllScripts"]);
             }
         })
     );
@@ -87,23 +83,57 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.uploadScript', (param) => {
             if (param) {
-                sdsAccess.documentsSession(loginData, ['uploadScript', param._fsPath]);
+                sdsAccess.sdsSession(loginData, ['uploadScript', param._fsPath]);
             } else {
-                sdsAccess.documentsSession(loginData, ['uploadScript']);
+                sdsAccess.sdsSession(loginData, ['uploadScript']);
             }
         })
     );
+
+
     // upload script on save
-    disposableOnSave = vscode.workspace.onDidSaveTextDocument(onDidSaveScript, this);
+    let disposableOnSave: vscode.Disposable;
+    disposableOnSave = vscode.workspace.onDidSaveTextDocument((textDocument) => {
+
+        const UPLOAD:  string = 'Upload script to Server?';
+        const CANCEL:  string = 'Not now';
+        const NEVER:   string = 'Never in this session';
+
+        // javascript files
+        if('.js' === path.extname(textDocument.fileName)) {
+            vscode.window.showQuickPick([UPLOAD, CANCEL, NEVER]).then((value) => {
+                if(UPLOAD === value) {
+                    sdsAccess.sdsSession(loginData, ['uploadScript', textDocument]);
+                } else if(NEVER === value) {
+                    disposableOnSave.dispose();
+                }
+            });
+        } else {
+            vscode.window.showInformationMessage('Only upload JavaScript files for now');
+        }
+
+        // typescript files
+        // const COMPILE: string = 'Compile and upload javascript to Server?';
+        // else if(textDocument.fileName.endsWith(".ts")) {
+        //     vscode.window.showQuickPick([COMPILE, CANCEL, NEVER]).then((value) => {
+        //         if(COMPILE === value) {
+        //             connectAndCallOperation('uploadScript', textDocument);
+        //         } else if(NEVER === value) {
+        //             disposableOnSave.dispose();
+        //         }
+        //     });
+        // }
+
+    }, this);
     context.subscriptions.push(disposableOnSave);
 
     // run script
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.runScript', (param) => {
             if(param) {
-                sdsAccess.documentsSession(loginData, ["runScript", param._fsPath]);
+                sdsAccess.sdsSession(loginData, ["runScript", param._fsPath]);
             } else {
-                sdsAccess.documentsSession(loginData, ["runScript"]);
+                sdsAccess.sdsSession(loginData, ["runScript"]);
             }
         })
     );
@@ -265,44 +295,6 @@ export function deactivate() {
 
 
 
-// load script automatically when script is saved
-function onDidSaveScript(textDocument: vscode.TextDocument) {
-    const UPLOAD:  string = 'Upload script to Server?';
-    const COMPILE: string = 'Compile and upload javascript to Server?';
-    const CANCEL:  string = 'Not now';
-    const NEVER:   string = 'Never in this session';
-
-    // javascript files
-    if('.js' === path.extname(textDocument.fileName)) {
-        vscode.window.showQuickPick([UPLOAD, CANCEL, NEVER]).then((value) => {
-            if(UPLOAD === value) {
-                sdsAccess.documentsSession(loginData, ['uploadScript', textDocument]);
-            }
-            if(NEVER === value) {
-                disposableOnSave.dispose();
-            }
-        });
-    } else {
-        vscode.window.showInformationMessage('Only upload JavaScript files for now');
-    }
-
-    // todo
-    // typescript files
-    if(textDocument.fileName.endsWith(".ts")) {
-    //     vscode.window.showQuickPick([COMPILE, CANCEL, NEVER]).then((value) => {
-    //         if(COMPILE === value) {
-    //             connectAndCallOperation('uploadScript', textDocument);
-    //         }
-    //         if(NEVER === value) {
-    //             disposableOnSave.dispose();
-    //         }
-    //     });
-    }
-
-}
-
-
-
 
 function getActivePath(): string {
     console.log('getActivePath');
@@ -323,29 +315,67 @@ function getActivePath(): string {
 
 
 
-async function ensurePath(parampath?: string): Promise<string> {
+function getPathFromFileOrDir(parampath: string, allowSubDir = false): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+        fs.stat(parampath, function (err, stats) {
+            
+            if(err) {
+                if(allowSubDir && 'ENOENT' === err.code) {
+                    let p = parampath.split(path.sep);
+                    let newfolder = p.pop();
+                    let _path = p.join(path.sep);
+                    fs.stat(_path, function (err, stats) {
+                        if(err) {
+                            if('ENOENT' === err.code) {
+                                reject('can only create a single subfolder on a valid path');
+                            } else {
+                                reject(err.message);
+                            }
+                        } else {
+                            if(stats.isDirectory()) {
+                                resolve(path.join(_path, newfolder));
+                            } else {
+                                reject('can only create a single subfolder on a valid path');
+                            }
+                        }
+                    });
+                } else {
+                    reject(err.message);
+                }
+            } else {
+                if(stats.isDirectory()) {
+                    resolve(parampath);
+                } else if(stats.isFile()) {
+                    resolve(path.dirname(parampath));
+                } else {
+                    reject('unexpected error in ' + parampath);
+                }
+            }
+        });
+    });
+}
+
+
+async function ensurePath(parampath: string, allowSubDir = false): Promise<string> {
     console.log('ensureDownloadPath');
 
     return new Promise<string>((resolve, reject) => {
 
         // given path must be absolute
-        if(parampath && path.isAbsolute(parampath)) {
+        if(parampath) {
 
             // if there's a workspace, returned path must be a subfolder of rootPath
-            if(vscode.workspace && !parampath.startsWith(vscode.workspace.rootPath)) {
-                reject(parampath + ' is not a subfolder of ' + vscode.workspace.rootPath);
-            
-            } else {
+            if(!vscode.workspace || parampath.startsWith(vscode.workspace.rootPath)) {
 
                 // return path of given file or folder
-                fs.stat(parampath, function (err, stats) {
-                    if(stats.isDirectory()) {
-                        resolve(parampath);
-                    }
-                    if(stats.isFile()) {
-                        resolve(path.dirname(parampath));
-                    }
+                getPathFromFileOrDir(parampath).then((retpath) => {
+                    resolve(retpath);
+                }).catch((reason) => {
+                    reject(reason);
                 });
+            
+            } else {
+                reject(parampath + ' is not a subfolder of ' + vscode.workspace.rootPath);
             }
         } else {
 
@@ -356,58 +386,24 @@ async function ensurePath(parampath?: string): Promise<string> {
                 value: defaultPath,
                 ignoreFocusOut: true,
             }).then((inputpath) => {
+
+                // input path must be absolute
                 if(inputpath) {
-                    if(path.isAbsolute(inputpath)) {
                         
-                        // if there's a workspace, returned path must be subfolder of rootPath
-                        if(vscode.workspace && !inputpath.startsWith(vscode.workspace.rootPath)) {
-                            reject(inputpath + ' is not a subfolder of ' + vscode.workspace.rootPath);
-                        } else {
-                            fs.stat(inputpath, function (err, stats) {
-                                if(err) {
-                                    if('ENOENT' === err.code) {
-                                        let p = inputpath.split(path.sep);
-                                        let newfolder = p.pop();
-                                        let _inputpath = p.join(path.sep);
-                                        fs.stat(_inputpath, function (err, stats) {
-                                            if(err) {
-                                                if('ENOENT' === err.code) {
-                                                    reject('can only create one subfolder');
-                                                } else {
-                                                    reject('error in ' + inputpath + ': ' + err.message);
-                                                }
-                                            } else {
-                                                if(stats.isDirectory()) {
-                                                    resolve(path.join(_inputpath, newfolder));
-                                                } else {
-                                                    reject('can only create one subfolder');
-                                                }
-                                            }
-                                        });
-                                    } else {
-                                        reject('error in ' + inputpath + ': ' + err.message);
-                                    }
-                                } else {
-                                    if(stats.isDirectory()) {
-                                        resolve(inputpath);
-                                    } else if(stats.isFile()) {
-                                        resolve(path.dirname(inputpath));
-                                    } else {
-                                        // shouldn't happen
-                                        reject('unexpected error: input is neither path nor file');
-                                    }
-                                }
-                            });
-                        }
+                    // if there's a workspace, returned path must be subfolder of rootPath
+                    if(!vscode.workspace || inputpath.startsWith(vscode.workspace.rootPath)) {
+
+                        // return path of input file or folder
+                        getPathFromFileOrDir(inputpath, allowSubDir).then((retpath) => {
+                            resolve(retpath);
+                        }).catch((reason) => {
+                            reject(reason);
+                        });
                     } else {
-                        if(0 > inputpath.indexOf(path.sep)) {
-                            resolve(path.join(vscode.workspace.rootPath, inputpath));
-                        } else {
-                            reject('can only create one subfolder');
-                        }
+                        reject(inputpath + ' is not a subfolder of ' + vscode.workspace.rootPath);
                     }
                 } else {
-                    reject('path is missing: command cannot be executed');
+                    reject('no path');
                 }
             });
         }
@@ -437,7 +433,7 @@ async function ensureScriptName(paramscript?: string): Promise<string> {
                 if(_scriptname) {
                     resolve(path.basename(_scriptname, '.js'));
                 } else {
-                    reject();
+                    reject('no script');
                 }
             });
         }
@@ -453,11 +449,11 @@ async function ensureScript(param?: string | vscode.TextDocument): Promise<sdsAc
 
         if(param) {
             if(typeof param === 'string') {
-                let ret: sdsAccess.script = sdsAccess.getScript(param);
-                if(ret) {
+                let ret = sdsAccess.getScript(param);
+                if(typeof ret !== 'string') {
                     resolve(ret);
                 } else {
-                    reject();
+                    reject(ret);
                 }
 
             } else { // vscode.TextDocument
@@ -479,14 +475,14 @@ async function ensureScript(param?: string | vscode.TextDocument): Promise<sdsAc
                 ignoreFocusOut: true,
             }).then((_scriptname) => {
                 if(_scriptname) {
-                    let ret: sdsAccess.script = sdsAccess.getScript(_scriptname);
-                    if(ret) {
+                    let ret = sdsAccess.getScript(_scriptname);
+                    if(typeof ret !== 'string') {
                         resolve(ret);
                     } else {
-                        reject();
+                        reject(ret);
                     }
                 } else {
-                    reject();
+                    reject('no scriptname');
                 }
             });
 
@@ -542,31 +538,28 @@ async function switchOperation(sdsConnection: SDSConnection,
 
         if('uploadScript' === operation) {
             ensureScript(param).then((retscr) => {
-                sdsAccess.uploadScript(sdsConnection, retscr.name, retscr.sourceCode).then(() => {
+                return sdsAccess.uploadScript(sdsConnection, retscr.name, retscr.sourceCode).then(() => {
                     vscode.window.setStatusBarMessage('uploaded: ' + retscr.name);
                     resolve();
-                }).catch((reason) => {
-                    vscode.window.showErrorMessage('upload script failed: ' + reason);
-                    reject();
                 });
+            }).catch((reason) => {
+                vscode.window.showErrorMessage('upload script failed: ' + reason);
+                reject();
             });
         }
 
 
         else if('downloadScript' === operation) {
             ensureScriptName(paramstr).then((scriptname) => {
-                ensurePath(paramstr).then((_path) => {
-                    sdsAccess.downloadScript(sdsConnection, scriptname, _path).then(() => {
+                return ensurePath(paramstr, true).then((_path) => {
+                    return sdsAccess.downloadScript(sdsConnection, scriptname, _path).then(() => {
                         vscode.window.setStatusBarMessage('downloaded: ' + scriptname);
                         resolve();
-                    }).catch((reason) => {
-                        vscode.window.showErrorMessage('download script failed: ' + reason);
-                        reject();
                     });
-                }).catch((reason) => {
-                    vscode.window.showErrorMessage('download script failed: ' + reason);
-                    reject();
                 });
+            }).catch((reason) => {
+                vscode.window.showErrorMessage('download script failed: ' + reason);
+                reject();
             });
         }
 
@@ -574,7 +567,7 @@ async function switchOperation(sdsConnection: SDSConnection,
 
         else if('runScript' === operation) {
             ensureScriptName(paramstr).then((scriptname) => {
-                sdsAccess.runScript(sdsConnection, scriptname).then((value) => {
+                return sdsAccess.runScript(sdsConnection, scriptname).then((value) => {
                     vscode.window.setStatusBarMessage('runScript: ' + scriptname);
                     for(let i=0; i<value.length; i++) {
                         console.log("line[" + i + "]: " + value[i]);
@@ -582,10 +575,10 @@ async function switchOperation(sdsConnection: SDSConnection,
                     }
                     myOutputChannel.show();
                     resolve();
-                }).catch((reason) => {
-                    vscode.window.showErrorMessage('run script failed: ' + reason);
-                    reject();
                 });
+            }).catch((reason) => {
+                vscode.window.showErrorMessage('run script failed: ' + reason);
+                reject();
             });
         }
 
@@ -605,7 +598,7 @@ async function switchOperation(sdsConnection: SDSConnection,
 
 
         else if('downloadAllScripts' === operation) {
-            ensurePath(paramstr).then((_path) => {
+            ensurePath(paramstr, true).then((_path) => {
                 return sdsAccess.getScriptNamesFromServer(sdsConnection).then((scriptNames) => {
                     return reduce(scriptNames, function(numscripts, name) {
                         return sdsAccess.downloadScript(sdsConnection, name, _path).then(() => {
@@ -642,31 +635,31 @@ async function switchOperation(sdsConnection: SDSConnection,
 
 
 // todo getJSFromTS
-async function uploadJSFromTS(sdsConnection: SDSConnection, textDocument: vscode.TextDocument): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+// async function uploadJSFromTS(sdsConnection: SDSConnection, textDocument: vscode.TextDocument): Promise<void> {
+//     return new Promise<void>((resolve, reject) => {
 
-        if(!textDocument || '.ts' !== path.extname(textDocument.fileName)) {
-            reject('No active ts script');
+//         if(!textDocument || '.ts' !== path.extname(textDocument.fileName)) {
+//             reject('No active ts script');
 
-        } else {
-            let shortName = '';
-            let scriptSource = '';
+//         } else {
+//             let shortName = '';
+//             let scriptSource = '';
 
-            shortName = path.basename(textDocument.fileName, '.ts');
-            let tsname:string = textDocument.fileName;
-            let jsname:string = tsname.substr(0, tsname.length - 3) + ".js";
-            //let tscargs = ['--module', 'commonjs', '-t', 'ES6'];
-            let tscargs = ['-t', 'ES5', '--out', jsname];
-            let retval = tsc.compile([textDocument.fileName], tscargs, null, function(e) { console.log(e); });
-            scriptSource = retval.sources[jsname];
-            console.log("scriptSource: " + scriptSource);
+//             shortName = path.basename(textDocument.fileName, '.ts');
+//             let tsname:string = textDocument.fileName;
+//             let jsname:string = tsname.substr(0, tsname.length - 3) + ".js";
+//             //let tscargs = ['--module', 'commonjs', '-t', 'ES6'];
+//             let tscargs = ['-t', 'ES5', '--out', jsname];
+//             let retval = tsc.compile([textDocument.fileName], tscargs, null, function(e) { console.log(e); });
+//             scriptSource = retval.sources[jsname];
+//             console.log("scriptSource: " + scriptSource);
         
-            sdsAccess.uploadScript(sdsConnection, shortName, scriptSource).then((value) => {
-                vscode.window.setStatusBarMessage('uploaded: ' + shortName);
-                resolve();
-            }).catch((reason) => {
-                reject(reason);
-            });
-        }
-    });
-}
+//             sdsAccess.uploadScript(sdsConnection, shortName, scriptSource).then((value) => {
+//                 vscode.window.setStatusBarMessage('uploaded: ' + shortName);
+//                 resolve();
+//             }).catch((reason) => {
+//                 reject(reason);
+//             });
+//         }
+//     });
+// }
