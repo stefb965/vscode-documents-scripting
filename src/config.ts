@@ -97,7 +97,7 @@ export class LoginData {
 
 
             // check launch.json for changes every time
-            if(this.loadLaunchJason() && this.checkLoginData()) {
+            if(this.loadLaunchJson() && this.checkLoginData()) {
                 resolve();
 
             } else { // loginData not set and no usable configuration file found
@@ -200,27 +200,7 @@ export class LoginData {
 
 
 
-
-    // // todo load current file
-    // async loadConfiguration(): Promise<void> {
-    //     return new Promise<void>((resolve, reject) => {
-    //         vscode.window.showInputBox({
-    //             prompt: 'Please enter the file',
-    //             ignoreFocusOut: true,
-    //         }).then((file) => {
-    //             if(file) {
-    //                 let _file = file.replace(/"/g, '');
-    //                 this.loadIniFile(_file);
-    //                 vscode.window.setStatusBarMessage('Configuration loaded');
-    //                 resolve();
-    //             }
-    //         });
-    //     });
-    // }
-
-
-
-    public loadLaunchJason() : boolean {
+    public loadLaunchJson() : boolean {
         const launchJsonPath = path.join(vscode.workspace.rootPath, '.vscode', LAUNCH_JSON_NAME);
 
         try {

@@ -50,9 +50,9 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.downloadAllScripts', (param) => {
             if(param) {
-                sdsAccess.sdsSession(loginData, ["downloadAllScripts", param._fsPath]);
+                sdsAccess.sdsSession(loginData, ['downloadAllScripts', param._fsPath]);
             } else {
-                sdsAccess.sdsSession(loginData, ["downloadAllScripts"]);
+                sdsAccess.sdsSession(loginData, ['downloadAllScripts']);
             }
         })
     );
@@ -61,9 +61,9 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.downloadScript', (param) => {
             if(param) {
-                sdsAccess.sdsSession(loginData, ["downloadScript", param._fsPath]);
+                sdsAccess.sdsSession(loginData, ['downloadScript', param._fsPath]);
             } else {
-                sdsAccess.sdsSession(loginData, ["downloadScript"]);
+                sdsAccess.sdsSession(loginData, ['downloadScript']);
             }
         })
     );
@@ -72,9 +72,9 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.uploadAllScripts', (param) => {
             if(param) {
-                sdsAccess.sdsSession(loginData, ["uploadAllScripts", param._fsPath]);
+                sdsAccess.sdsSession(loginData, ['uploadAllScripts', param._fsPath]);
             } else {
-                sdsAccess.sdsSession(loginData, ["uploadAllScripts"]);
+                sdsAccess.sdsSession(loginData, ['uploadAllScripts']);
             }
         })
     );

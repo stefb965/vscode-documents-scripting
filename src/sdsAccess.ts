@@ -88,7 +88,7 @@ export function sdsSession(loginData: config.LoginData, param: any[]) {
 }
 
 
-export async function doLogin(loginData: config.LoginData, sdsSocket: Socket): Promise<SDSConnection> {
+async function doLogin(loginData: config.LoginData, sdsSocket: Socket): Promise<SDSConnection> {
     return new Promise<SDSConnection>((resolve, reject) => {
         let sdsConnection = new SDSConnection(sdsSocket);
         sdsConnection.timeout = SDS_TIMEOUT;
@@ -124,7 +124,7 @@ export async function doLogin(loginData: config.LoginData, sdsSocket: Socket): P
 }
 
 
-export async function closeConnection(sdsConnection: SDSConnection): Promise<void> {
+async function closeConnection(sdsConnection: SDSConnection): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         sdsConnection.disconnect().then(() => {
             resolve();
