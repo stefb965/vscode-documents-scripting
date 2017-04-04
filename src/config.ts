@@ -18,9 +18,11 @@ export class LoginData {
     public launchjson = '';
     public inputfunction: (_loginData) => Promise<void>;
 
-    constructor (_launchjson: string, _inputfunction: (_loginData) => Promise<void>) {
+    constructor (_launchjson: string, _inputfunction?: (_loginData) => Promise<void>) {
         this.launchjson = _launchjson;
-        this.inputfunction = _inputfunction;
+        if(_inputfunction) {
+            this.inputfunction = _inputfunction;
+        }
     }
 
 
