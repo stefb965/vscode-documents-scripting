@@ -15,7 +15,42 @@ const open = require('open');
 const urlExists = require('url-exists');
 
 
+const LAUNCH_JSON_NAME: string = 'launch.json';
 
+const initialConfigurations = [
+    {
+        name: 'Launch Script on Server',
+        request: 'launch',
+        type: 'janus',
+        script: '',
+        username: '',
+        password: '',
+        principal: '',
+        host: 'localhost',
+        applicationPort: 11000,
+        debuggerPort: 8089,
+        stopOnEntry: false,
+        log: {
+            fileName: '${workspaceRoot}/vscode-janus-debug-launch.log',
+            logLevel: {
+                default: 'Debug',
+            },
+        },
+    },
+    {
+        name: 'Attach to Server',
+        request: 'attach',
+        type: 'janus',
+        host: 'localhost',
+        debuggerPort: 8089,
+        log: {
+            fileName: '${workspaceRoot}/vscode-janus-debug-attach.log',
+            logLevel: {
+                default: 'Debug',
+            },
+        },
+    },
+];
 
 
 
@@ -36,7 +71,8 @@ export function activate(context: vscode.ExtensionContext) {
     // set up...
 
     // object loginData should be deleted on deactivation
-    let loginData: config.LoginData = new config.LoginData();
+    let launchjson = path.join(vscode.workspace.rootPath, '.vscode', LAUNCH_JSON_NAME);
+    let loginData: config.LoginData = new config.LoginData(launchjson, inputProcedure);
     context.subscriptions.push(loginData);
 
     sdsAccess.setServerOperation((sdsConnection: SDSConnection, param: any[]) => documentsOperation(sdsConnection, param));
@@ -142,7 +178,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.saveConfiguration', () => {
             if(loginData) {
-                loginData.inputProcedure();
+                inputProcedure(loginData);
             }
         })
     );
@@ -291,6 +327,178 @@ export function deactivate() {
     console.log('The extension is deactivated');
     // context.subscriptions...?
 }
+
+
+
+
+
+
+
+
+async function inputProcedure(_loginData:config.LoginData): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+
+        // input login data
+        askForLoginData(_loginData).then(() => {
+            writeLaunchJson(_loginData).then(() => {
+                vscode.window.setStatusBarMessage('Saved login data');
+                resolve();
+            }).catch((reason) => {
+                resolve();
+            });
+            resolve();
+        }).catch((reason) => {
+            console.log('reject from askForLoginData(): ' + reason);
+            reject(reason);
+        });
+    });
+}
+
+async function askForLoginData(_loginData:config.LoginData): Promise<void> {
+    console.log('askForLoginData');
+    
+    const SERVER: string = 'localhost';
+    const PORT: number = 11000;
+    const PRINCIPAL: string = 'dopaag';
+    const USERNAME: string = 'admin';
+    const PASSWORD = '';
+
+    return new Promise<void>((resolve, reject) => {
+        // showQuickPick() and showInputBox() return thenable(value) objects,
+        // that is, these objects always have a then(value) function,
+        // value can't be empty iff it's predefined in options
+        vscode.window.showInputBox({
+            prompt: 'Please enter the server',
+            value: SERVER,
+            ignoreFocusOut: true,
+        }).then((server) => {
+            if(server) {
+                _loginData.server = server;
+                return vscode.window.showInputBox({
+                    prompt: 'Please enter the port',
+                    value: _loginData.port? _loginData.port.toString(): PORT.toString(),
+                    ignoreFocusOut: true,
+                });
+            }
+        }).then((port) => {
+            if(port) {
+                _loginData.port = Number(port);
+                return vscode.window.showInputBox({
+                    prompt: 'Please enter the principal',
+                    value: _loginData.principal? _loginData.principal: PRINCIPAL,
+                    ignoreFocusOut: true,
+                });
+            }
+        }).then((principal) => {
+            if(principal) {
+                _loginData.principal = principal;
+                return vscode.window.showInputBox({
+                    prompt: 'Please enter the username',
+                    value: _loginData.username? _loginData.username: USERNAME,
+                    ignoreFocusOut: true,
+                });
+            }
+        }).then((username) => {
+            if(username) {
+                _loginData.username = username;
+                return vscode.window.showInputBox({
+                    prompt: 'Please enter the password',
+                    value: PASSWORD,
+                    password: true,
+                    ignoreFocusOut: true,
+                });
+            }
+        }).then((password) => {
+            if(password != undefined) {
+                _loginData.password = password;
+                resolve();
+            } else {
+                reject();
+                vscode.window.showErrorMessage('Input login data cancelled: command cannot be executed');
+            }
+        });
+    });
+}
+
+
+
+async function writeLaunchJson(_loginData:config.LoginData): Promise<void> {
+    console.log('writeLaunchJson');
+
+    initialConfigurations.forEach((config: any) => {
+        if (config.request == 'launch') {
+            config.host = _loginData.server;
+            config.applicationPort = _loginData.port;
+            config.principal = _loginData.principal;
+            config.username = _loginData.username;
+            config.password = _loginData.password;
+        }
+    });
+
+    const configurations = JSON.stringify(initialConfigurations, null, '\t')
+        .split('\n').map(line => '\t' + line).join('\n').trim();
+
+    const data = [
+        '{',
+        '\t// Use IntelliSense to learn about possible configuration attributes.',
+        '\t// Hover to view descriptions of existing attributes.',
+        '\t// For more information, visit',
+        '\t// https://github.com/otris/vscode-janus-debug/wiki/Launching-the-Debugger',
+        '\t"version": "0.2.0",',
+        '\t"configurations": ' + configurations,
+        '}',
+    ].join('\n');
+
+    return writeFileToWorkspace(data);
+}
+
+
+async function writeFileToWorkspace (data) {
+    console.log('writeConfigFile');
+
+    return new Promise<void>((resolve, reject) => {
+        let rootPath = vscode.workspace.rootPath;
+        
+        if(!rootPath) {
+            vscode.window.showWarningMessage("login data can only be saved in workspace");
+            resolve();
+
+        } else {
+            let _path: string = path.join(rootPath, '.vscode');
+            let file = path.join(_path, LAUNCH_JSON_NAME);
+
+            fs.writeFile(file, data, {encoding: 'utf8'}, function(error) {
+                if(error) {
+                    if(error.code === 'ENOENT') {
+                        fs.mkdir(_path, function(error) {
+                            if(error) {
+                                reject(error);
+                            } else {
+                                console.log('created path: ' + _path);
+                                fs.writeFile(file, data, {encoding: 'utf8'}, function(error) {
+                                    if(error) {
+                                        reject(error);
+                                    } else {
+                                        console.log('wrote file: ' +  file);
+                                        resolve();
+                                    }
+                                });
+                            }
+                        });
+                    } else {
+                        reject(error);
+                    }
+                } else {
+                    console.log('wrote file: ' +  file);
+                    resolve();
+                }
+            });
+
+        }
+    });
+}
+
+
 
 
 
