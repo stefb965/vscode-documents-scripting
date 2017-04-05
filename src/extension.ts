@@ -96,8 +96,8 @@ export function activate(context: vscode.ExtensionContext) {
             if(param) {
                 _param = param._fsPath;
             }
-            sdsAccess.sdsSession(loginData, ['downloadAllScripts', _param]).then(() => {
-
+            sdsAccess.sdsSession(loginData, ['downloadAllScripts', _param]).then((numscripts) => {
+                vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
             }).catch((reason) => {
                 vscode.window.showErrorMessage(reason);
             });
@@ -111,8 +111,8 @@ export function activate(context: vscode.ExtensionContext) {
             if(param) {
                 _param = param._fsPath;
             }
-            sdsAccess.sdsSession(loginData, ['downloadScript', _param]).then(() => {
-
+            sdsAccess.sdsSession(loginData, ['downloadScript', _param]).then((scriptname) => {
+                vscode.window.setStatusBarMessage('downloaded: ' + scriptname);
             }).catch((reason) => {
                 vscode.window.showErrorMessage(reason);
             });
@@ -126,8 +126,8 @@ export function activate(context: vscode.ExtensionContext) {
             if(param) {
                 _param = param._fsPath;
             }
-            sdsAccess.sdsSession(loginData, ['uploadAllScripts', _param]).then(() => {
-
+            sdsAccess.sdsSession(loginData, ['uploadAllScripts', _param]).then((numscripts) => {
+                vscode.window.setStatusBarMessage('uploaded ' + numscripts + ' scripts');
             }).catch((reason) => {
                 vscode.window.showErrorMessage(reason);
             });
@@ -141,8 +141,8 @@ export function activate(context: vscode.ExtensionContext) {
             if (param) {
                 _param = param._fsPath;
             }
-            sdsAccess.sdsSession(loginData, ['uploadScript', _param]).then(() => {
-
+            sdsAccess.sdsSession(loginData, ['uploadScript', _param]).then((scriptname) => {
+                vscode.window.setStatusBarMessage('uploaded: ' + scriptname);
             }).catch((reason) => {
                 vscode.window.showErrorMessage(reason);
             });
@@ -157,8 +157,8 @@ export function activate(context: vscode.ExtensionContext) {
             if(param) {
                 _param = param._fsPath;
             }
-            sdsAccess.sdsSession(loginData, ["runScript", _param]).then(() => {
-
+            sdsAccess.sdsSession(loginData, ["runScript", _param]).then((scriptname) => {
+                vscode.window.setStatusBarMessage('runScript: ' + scriptname);
             }).catch((reason) => {
                 vscode.window.showErrorMessage(reason);
             });
@@ -180,7 +180,11 @@ export function activate(context: vscode.ExtensionContext) {
         if('.js' === path.extname(textDocument.fileName)) {
             vscode.window.showQuickPick([UPLOAD, CANCEL, NEVER]).then((value) => {
                 if(UPLOAD === value) {
-                    sdsAccess.sdsSession(loginData, ['uploadScript', textDocument]);
+                    sdsAccess.sdsSession(loginData, ['uploadScript', textDocument]).then((scriptname) => {
+                        vscode.window.setStatusBarMessage('uploaded: ' + scriptname);
+                    }).catch((reason) => {
+                        vscode.window.showErrorMessage(reason);
+                    });
                 } else if(NEVER === value) {
                     disposableOnSave.dispose();
                 }
@@ -733,10 +737,10 @@ async function ensureScript(param?: string | vscode.TextDocument): Promise<sdsAc
 }
 
 
-async function documentsOperation(sdsConnection: SDSConnection, param: any[]): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-        switchOperation(sdsConnection, param).then(() => {
-            resolve();
+async function documentsOperation(sdsConnection: SDSConnection, param: any[]): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+        switchOperation(sdsConnection, param).then((value) => {
+            resolve(value);
         }).catch((reason) => {
             reject(reason);
         });
@@ -744,10 +748,9 @@ async function documentsOperation(sdsConnection: SDSConnection, param: any[]): P
 }
 
 
-async function switchOperation(sdsConnection: SDSConnection,
-                               param: any[]): Promise<void> {
+async function switchOperation(sdsConnection: SDSConnection, param: any[]): Promise<string> {
     
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<string>((resolve, reject) => {
 
         let operation = param[0];
         if(typeof operation !== 'string') {
@@ -758,8 +761,7 @@ async function switchOperation(sdsConnection: SDSConnection,
         if('uploadScript' === operation) {
             ensureScript(param[1]).then((_script) => {
                 return sdsAccess.uploadScript(sdsConnection, _script.name, _script.sourceCode).then(() => {
-                    vscode.window.setStatusBarMessage('uploaded: ' + _script.name);
-                    resolve();
+                    resolve(_script.name);
                 });
             }).catch((reason) => {
                 reject('upload script failed: ' + reason);
@@ -771,8 +773,7 @@ async function switchOperation(sdsConnection: SDSConnection,
             ensureScriptName(param[1]).then((scriptname) => {
                 return ensurePath(param[1], true).then((_path) => {
                     return sdsAccess.downloadScript(sdsConnection, scriptname, _path).then(() => {
-                        vscode.window.setStatusBarMessage('downloaded: ' + scriptname);
-                        resolve();
+                        resolve(scriptname);
                     });
                 });
             }).catch((reason) => {
@@ -785,13 +786,12 @@ async function switchOperation(sdsConnection: SDSConnection,
         else if('runScript' === operation) {
             ensureScriptName(param[1]).then((scriptname) => {
                 return sdsAccess.runScript(sdsConnection, scriptname).then((value) => {
-                    vscode.window.setStatusBarMessage('runScript: ' + scriptname);
                     for(let i=0; i<value.length; i++) {
                         console.log("line[" + i + "]: " + value[i]);
                         myOutputChannel.append(value[i] + os.EOL);
                     }
                     myOutputChannel.show();
-                    resolve();
+                    resolve(scriptname);
                 });
             }).catch((reason) => {
                 reject('run script failed: ' + reason);
@@ -803,8 +803,7 @@ async function switchOperation(sdsConnection: SDSConnection,
         else if('uploadAllScripts' === operation) {
             ensurePath(param[1]).then((folder) => {
                 return sdsAccess.uploadAll(sdsConnection, folder).then((numscripts) => {
-                    vscode.window.setStatusBarMessage('uploaded ' + numscripts + ' scripts');
-                    resolve();
+                    resolve('' + numscripts);
                 });
             }).catch((reason) => {
                 reject('upload all failed: ' + reason);
@@ -820,8 +819,7 @@ async function switchOperation(sdsConnection: SDSConnection,
                             return numscripts + 1;
                         });
                     }, 0).then((numscripts) => {
-                        vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
-                        resolve();
+                        resolve('' + numscripts);
                     });
                 });
             }).catch((reason) => {
