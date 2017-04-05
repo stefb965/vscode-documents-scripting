@@ -141,8 +141,12 @@ export function activate(context: vscode.ExtensionContext) {
             if (param) {
                 _param = param._fsPath;
             }
-            sdsAccess.sdsSession(loginData, ['uploadScript', _param]).then((scriptname) => {
-                vscode.window.setStatusBarMessage('uploaded: ' + scriptname);
+            ensureScript(_param).then((_script) => {
+                sdsAccess.sdsSession(loginData, ['uploadScript', _script.name, _script.sourceCode]).then((scriptname) => {
+                    vscode.window.setStatusBarMessage('uploaded: ' + scriptname);
+                }).catch((reason) => {
+                    vscode.window.showErrorMessage('upload script failed: ' + reason);
+                });
             }).catch((reason) => {
                 vscode.window.showErrorMessage(reason);
             });
@@ -750,26 +754,16 @@ async function documentsOperation(sdsConnection: SDSConnection, param: any[]): P
 
 async function switchOperation(sdsConnection: SDSConnection, param: any[]): Promise<string> {
     
+    if('uploadScript' === param[0]) {
+        return sdsAccess.uploadScript(sdsConnection, param[1], param[2]);
+
+
+    } else {
+
+
     return new Promise<string>((resolve, reject) => {
 
-        let operation = param[0];
-        if(typeof operation !== 'string') {
-            reject('first parameter must be operation as string');
-        }
-
-
-        if('uploadScript' === operation) {
-            ensureScript(param[1]).then((_script) => {
-                return sdsAccess.uploadScript(sdsConnection, _script.name, _script.sourceCode).then(() => {
-                    resolve(_script.name);
-                });
-            }).catch((reason) => {
-                reject('upload script failed: ' + reason);
-            });
-        }
-
-
-        else if('downloadScript' === operation) {
+        if('downloadScript' === param[0]) {
             ensureScriptName(param[1]).then((scriptname) => {
                 return ensurePath(param[1], true).then((_path) => {
                     return sdsAccess.downloadScript(sdsConnection, scriptname, _path).then(() => {
@@ -781,9 +775,7 @@ async function switchOperation(sdsConnection: SDSConnection, param: any[]): Prom
             });
         }
 
-
-
-        else if('runScript' === operation) {
+        else if('runScript' === param[0]) {
             ensureScriptName(param[1]).then((scriptname) => {
                 return sdsAccess.runScript(sdsConnection, scriptname).then((value) => {
                     for(let i=0; i<value.length; i++) {
@@ -798,9 +790,7 @@ async function switchOperation(sdsConnection: SDSConnection, param: any[]): Prom
             });
         }
 
-
-
-        else if('uploadAllScripts' === operation) {
+        else if('uploadAllScripts' === param[0]) {
             ensurePath(param[1]).then((folder) => {
                 return sdsAccess.uploadAll(sdsConnection, folder).then((numscripts) => {
                     resolve('' + numscripts);
@@ -810,8 +800,7 @@ async function switchOperation(sdsConnection: SDSConnection, param: any[]): Prom
             });
         }
 
-
-        else if('downloadAllScripts' === operation) {
+        else if('downloadAllScripts' === param[0]) {
             ensurePath(param[1], true).then((_path) => {
                 return sdsAccess.getScriptNamesFromServer(sdsConnection).then((scriptNames) => {
                     return reduce(scriptNames, function(numscripts, name) {
@@ -827,14 +816,12 @@ async function switchOperation(sdsConnection: SDSConnection, param: any[]): Prom
             });
         }
 
-
         // else if...
-
         else {
-            reject('switchOperation: unknown operation: ' + operation);
+            reject('switchOperation: unknown operation: ' + param[0]);
         }
-
     });
+    }
 }
 
 
