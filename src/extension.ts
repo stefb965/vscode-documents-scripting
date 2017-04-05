@@ -72,8 +72,15 @@ export function activate(context: vscode.ExtensionContext) {
 
     // object loginData should be deleted on deactivation
     let launchjson = path.join(vscode.workspace.rootPath, '.vscode', LAUNCH_JSON_NAME);
-    let loginData: config.LoginData = new config.LoginData(launchjson, inputProcedure);
+    let loginData: config.LoginData = new config.LoginData(launchjson);
     context.subscriptions.push(loginData);
+
+    
+    if(!loginData.ensureLoginData())
+    {
+        inputProcedure(loginData);
+    }
+
 
     sdsAccess.setServerOperation((sdsConnection: SDSConnection, param: any[]) => documentsOperation(sdsConnection, param));
 
@@ -85,46 +92,80 @@ export function activate(context: vscode.ExtensionContext) {
     // download all
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.downloadAllScripts', (param) => {
+            let _param;
             if(param) {
-                sdsAccess.sdsSession(loginData, ['downloadAllScripts', param._fsPath]);
-            } else {
-                sdsAccess.sdsSession(loginData, ['downloadAllScripts']);
+                _param = param._fsPath;
             }
+            sdsAccess.sdsSession(loginData, ['downloadAllScripts', _param]).then(() => {
+
+            }).catch((reason) => {
+                vscode.window.showErrorMessage(reason);
+            });
         })
     );
 
     // download script
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.downloadScript', (param) => {
+            let _param;
             if(param) {
-                sdsAccess.sdsSession(loginData, ['downloadScript', param._fsPath]);
-            } else {
-                sdsAccess.sdsSession(loginData, ['downloadScript']);
+                _param = param._fsPath;
             }
+            sdsAccess.sdsSession(loginData, ['downloadScript', _param]).then(() => {
+
+            }).catch((reason) => {
+                vscode.window.showErrorMessage(reason);
+            });
         })
     );
 
     // upload all
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.uploadAllScripts', (param) => {
+            let _param;
             if(param) {
-                sdsAccess.sdsSession(loginData, ['uploadAllScripts', param._fsPath]);
-            } else {
-                sdsAccess.sdsSession(loginData, ['uploadAllScripts']);
+                _param = param._fsPath;
             }
+            sdsAccess.sdsSession(loginData, ['uploadAllScripts', _param]).then(() => {
+
+            }).catch((reason) => {
+                vscode.window.showErrorMessage(reason);
+            });
         })
     );
 
     // upload script
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.uploadScript', (param) => {
+            let _param;
             if (param) {
-                sdsAccess.sdsSession(loginData, ['uploadScript', param._fsPath]);
-            } else {
-                sdsAccess.sdsSession(loginData, ['uploadScript']);
+                _param = param._fsPath;
             }
+            sdsAccess.sdsSession(loginData, ['uploadScript', _param]).then(() => {
+
+            }).catch((reason) => {
+                vscode.window.showErrorMessage(reason);
+            });
         })
     );
+
+
+    // run script
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.runScript', (param) => {
+            let _param;
+            if(param) {
+                _param = param._fsPath;
+            }
+            sdsAccess.sdsSession(loginData, ["runScript", _param]).then(() => {
+
+            }).catch((reason) => {
+                vscode.window.showErrorMessage(reason);
+            });
+        })
+    );
+
+
 
 
     // upload script on save
@@ -163,16 +204,6 @@ export function activate(context: vscode.ExtensionContext) {
     }, this);
     context.subscriptions.push(disposableOnSave);
 
-    // run script
-    context.subscriptions.push(
-        vscode.commands.registerCommand('extension.runScript', (param) => {
-            if(param) {
-                sdsAccess.sdsSession(loginData, ["runScript", param._fsPath]);
-            } else {
-                sdsAccess.sdsSession(loginData, ["runScript"]);
-            }
-        })
-    );
 
     // save configuration
     context.subscriptions.push(
@@ -281,44 +312,13 @@ export function activate(context: vscode.ExtensionContext) {
     // compare script
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.compareScript', (param) => {
-
-            // todo create function compareScript()...
-
-            let filepath;
-
-            if(param) {
-                filepath = param._fsPath;
-            } else {
-                let editor = vscode.window.activeTextEditor;
-                if (editor && editor.document) {
-                    filepath = editor.document.fileName;
-                }
-            }
-
-            if(!filepath) {
-                vscode.window.showErrorMessage('Select or open a file to compare');
-                return;
-            } else {
-                if('.js' === path.extname(filepath)) {
-                    let filename = path.basename(filepath);
-                    let leftfile = filepath;
-                    if(vscode.workspace.rootPath) {
-                        let rightfile = path.join(vscode.workspace.rootPath, DIFF_FOLDER, filename);
-                        let lefturi = vscode.Uri.file(leftfile);
-                        let righturi = vscode.Uri.file(rightfile);
-                        let title = 'Diff ' + filename;
-                        vscode.commands.executeCommand('vscode.diff', lefturi, righturi, title).then(() => {
-                        }, (reason) => {
-                            vscode.window.showInformationMessage('View Diff is not yet available!');
-                        });
-                    }
-                }
-            }
+            compareScript(param);
         })
     );
 
 
     vscode.window.setStatusBarMessage('vscode-documents-scripting is active');
+
 }
 
 
@@ -331,24 +331,58 @@ export function deactivate() {
 
 
 
+function compareScript(param) {
+    let filepath;
+
+    if(param) {
+        filepath = param._fsPath;
+    } else {
+        let editor = vscode.window.activeTextEditor;
+        if (editor && editor.document) {
+            filepath = editor.document.fileName;
+        }
+    }
+
+    if(!filepath) {
+        vscode.window.showErrorMessage('Select or open a file to compare');
+        return;
+    } else {
+        if('.js' === path.extname(filepath)) {
+            let filename = path.basename(filepath);
+            if(vscode.workspace.rootPath) {
+
+                // download leftfile -> as unsaved?
+                let leftfile = path.join(vscode.workspace.rootPath, DIFF_FOLDER, filename);
+
+                let rightfile = filepath;
+                let lefturi = vscode.Uri.file(leftfile);
+                let righturi = vscode.Uri.file(rightfile);
+                let title = 'Compare ' + filename;
+                
+                vscode.commands.executeCommand('vscode.diff', lefturi, righturi, title).then(() => {
+                }, (reason) => {
+                    vscode.window.showInformationMessage('View Diff is not yet available!');
+                });
+
+                // delete rightfile on close
+            }
+        }
+    }
+}
+
 
 
 
 
 async function inputProcedure(_loginData:config.LoginData): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-
-        // input login data
         askForLoginData(_loginData).then(() => {
-            writeLaunchJson(_loginData).then(() => {
+            return writeLaunchJson(_loginData).then(() => {
                 vscode.window.setStatusBarMessage('Saved login data');
                 resolve();
-            }).catch((reason) => {
-                resolve();
             });
-            resolve();
         }).catch((reason) => {
-            console.log('reject from askForLoginData(): ' + reason);
+            vscode.window.showErrorMessage('did not save login data: ' + reason);
             reject(reason);
         });
     });
@@ -698,83 +732,58 @@ async function ensureScript(param?: string | vscode.TextDocument): Promise<sdsAc
     });
 }
 
-function documentsOperation_typeCheck(param: any[]): boolean {
-    
-    if('string' !== typeof param[0]) {
-        return false;
-    }
-
-    if(undefined === param[1]) {
-        return true;
-    } else if('string' === typeof param[1]) {
-        return true;
-    // todo check vscode.TextDocument (Interface)
-    } else if(param[1].fileName !== undefined && param[1].isUntitled !== undefined) {
-        return true;
-    }
-
-    return false;
-}
 
 async function documentsOperation(sdsConnection: SDSConnection, param: any[]): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-        if(documentsOperation_typeCheck(param)) {
-            switchOperation(sdsConnection, param[0], param[1]).then(() => {
-                resolve();
-            }).catch((reason) => {
-                reject();
-            });
-        } else {
-            reject('incorrect parameter type');
-        }
+        switchOperation(sdsConnection, param).then(() => {
+            resolve();
+        }).catch((reason) => {
+            reject(reason);
+        });
     });
 }
 
 
 async function switchOperation(sdsConnection: SDSConnection,
-                               operation: string,
-                               param?: string | vscode.TextDocument): Promise<void> {
+                               param: any[]): Promise<void> {
     
     return new Promise<void>((resolve, reject) => {
 
-
-        let paramstr;
-        if(typeof param === 'string') {
-            paramstr = param;
+        let operation = param[0];
+        if(typeof operation !== 'string') {
+            reject('first parameter must be operation as string');
         }
 
 
         if('uploadScript' === operation) {
-            ensureScript(param).then((retscr) => {
-                return sdsAccess.uploadScript(sdsConnection, retscr.name, retscr.sourceCode).then(() => {
-                    vscode.window.setStatusBarMessage('uploaded: ' + retscr.name);
+            ensureScript(param[1]).then((_script) => {
+                return sdsAccess.uploadScript(sdsConnection, _script.name, _script.sourceCode).then(() => {
+                    vscode.window.setStatusBarMessage('uploaded: ' + _script.name);
                     resolve();
                 });
             }).catch((reason) => {
-                vscode.window.showErrorMessage('upload script failed: ' + reason);
-                reject();
+                reject('upload script failed: ' + reason);
             });
         }
 
 
         else if('downloadScript' === operation) {
-            ensureScriptName(paramstr).then((scriptname) => {
-                return ensurePath(paramstr, true).then((_path) => {
+            ensureScriptName(param[1]).then((scriptname) => {
+                return ensurePath(param[1], true).then((_path) => {
                     return sdsAccess.downloadScript(sdsConnection, scriptname, _path).then(() => {
                         vscode.window.setStatusBarMessage('downloaded: ' + scriptname);
                         resolve();
                     });
                 });
             }).catch((reason) => {
-                vscode.window.showErrorMessage('download script failed: ' + reason);
-                reject();
+                reject('download script failed: ' + reason);
             });
         }
 
 
 
         else if('runScript' === operation) {
-            ensureScriptName(paramstr).then((scriptname) => {
+            ensureScriptName(param[1]).then((scriptname) => {
                 return sdsAccess.runScript(sdsConnection, scriptname).then((value) => {
                     vscode.window.setStatusBarMessage('runScript: ' + scriptname);
                     for(let i=0; i<value.length; i++) {
@@ -785,28 +794,26 @@ async function switchOperation(sdsConnection: SDSConnection,
                     resolve();
                 });
             }).catch((reason) => {
-                vscode.window.showErrorMessage('run script failed: ' + reason);
-                reject();
+                reject('run script failed: ' + reason);
             });
         }
 
 
 
         else if('uploadAllScripts' === operation) {
-            ensurePath(paramstr).then((folder) => {
+            ensurePath(param[1]).then((folder) => {
                 return sdsAccess.uploadAll(sdsConnection, folder).then((numscripts) => {
                     vscode.window.setStatusBarMessage('uploaded ' + numscripts + ' scripts');
                     resolve();
                 });
             }).catch((reason) => {
-                vscode.window.showErrorMessage('upload all failed: ' + reason);
-                reject();
+                reject('upload all failed: ' + reason);
             });
         }
 
 
         else if('downloadAllScripts' === operation) {
-            ensurePath(paramstr, true).then((_path) => {
+            ensurePath(param[1], true).then((_path) => {
                 return sdsAccess.getScriptNamesFromServer(sdsConnection).then((scriptNames) => {
                     return reduce(scriptNames, function(numscripts, name) {
                         return sdsAccess.downloadScript(sdsConnection, name, _path).then(() => {
@@ -818,8 +825,7 @@ async function switchOperation(sdsConnection: SDSConnection,
                     });
                 });
             }).catch((reason) => {
-                vscode.window.showErrorMessage('download all failed: ' + reason);
-                reject();
+                reject('download all failed: ' + reason);
             });
         }
 
@@ -827,8 +833,7 @@ async function switchOperation(sdsConnection: SDSConnection,
         // else if...
 
         else {
-            vscode.window.showErrorMessage('switchOperation: unknown operation: ' + operation);
-            reject();
+            reject('switchOperation: unknown operation: ' + operation);
         }
 
     });
