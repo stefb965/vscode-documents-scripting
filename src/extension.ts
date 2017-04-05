@@ -96,7 +96,7 @@ export function activate(context: vscode.ExtensionContext) {
             if(param) {
                 _param = param._fsPath;
             }
-            sdsAccess.sdsSession(loginData, ['downloadAllScripts', _param]).then((numscripts) => {
+            sdsAccess.sdsSession(loginData, ['downloadAllScripts', _param], undefined).then((numscripts) => {
                 vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
             }).catch((reason) => {
                 vscode.window.showErrorMessage(reason);
@@ -111,11 +111,20 @@ export function activate(context: vscode.ExtensionContext) {
             if(param) {
                 _param = param._fsPath;
             }
-            sdsAccess.sdsSession(loginData, ['downloadScript', _param]).then((scriptname) => {
-                vscode.window.setStatusBarMessage('downloaded: ' + scriptname);
+
+            ensureScriptName(_param).then((scriptname) => {
+                return ensurePath(_param, true).then((_path) => {
+                    let params = [scriptname, _path];
+                    return sdsAccess.sdsSession(loginData, params, sdsAccess.downloadScript).then((scriptname) => {
+                        vscode.window.setStatusBarMessage('downloaded: ' + scriptname);
+                    });
+                });
             }).catch((reason) => {
-                vscode.window.showErrorMessage(reason);
+                vscode.window.showErrorMessage('download script failed: ' + reason);
             });
+
+
+
         })
     );
 
@@ -126,7 +135,7 @@ export function activate(context: vscode.ExtensionContext) {
             if(param) {
                 _param = param._fsPath;
             }
-            sdsAccess.sdsSession(loginData, ['uploadAllScripts', _param]).then((numscripts) => {
+            sdsAccess.sdsSession(loginData, ['uploadAllScripts', _param], undefined).then((numscripts) => {
                 vscode.window.setStatusBarMessage('uploaded ' + numscripts + ' scripts');
             }).catch((reason) => {
                 vscode.window.showErrorMessage(reason);
@@ -142,13 +151,11 @@ export function activate(context: vscode.ExtensionContext) {
                 _param = param._fsPath;
             }
             ensureScript(_param).then((_script) => {
-                sdsAccess.sdsSession(loginData, ['uploadScript', _script.name, _script.sourceCode]).then((scriptname) => {
+                return sdsAccess.sdsSession(loginData, ['uploadScript', _script.name, _script.sourceCode], undefined).then((scriptname) => {
                     vscode.window.setStatusBarMessage('uploaded: ' + scriptname);
-                }).catch((reason) => {
-                    vscode.window.showErrorMessage('upload script failed: ' + reason);
                 });
             }).catch((reason) => {
-                vscode.window.showErrorMessage(reason);
+                vscode.window.showErrorMessage('upload script failed: ' + reason);
             });
         })
     );
@@ -161,7 +168,7 @@ export function activate(context: vscode.ExtensionContext) {
             if(param) {
                 _param = param._fsPath;
             }
-            sdsAccess.sdsSession(loginData, ["runScript", _param]).then((scriptname) => {
+            sdsAccess.sdsSession(loginData, ["runScript", _param], undefined).then((scriptname) => {
                 vscode.window.setStatusBarMessage('runScript: ' + scriptname);
             }).catch((reason) => {
                 vscode.window.showErrorMessage(reason);
@@ -184,7 +191,7 @@ export function activate(context: vscode.ExtensionContext) {
         if('.js' === path.extname(textDocument.fileName)) {
             vscode.window.showQuickPick([UPLOAD, CANCEL, NEVER]).then((value) => {
                 if(UPLOAD === value) {
-                    sdsAccess.sdsSession(loginData, ['uploadScript', textDocument]).then((scriptname) => {
+                    sdsAccess.sdsSession(loginData, ['uploadScript', textDocument], undefined).then((scriptname) => {
                         vscode.window.setStatusBarMessage('uploaded: ' + scriptname);
                     }).catch((reason) => {
                         vscode.window.showErrorMessage(reason);
@@ -757,25 +764,16 @@ async function switchOperation(sdsConnection: SDSConnection, param: any[]): Prom
     if('uploadScript' === param[0]) {
         return sdsAccess.uploadScript(sdsConnection, param[1], param[2]);
 
+    // } else if('downloadScript' === param[0]) {
+    //     return sdsAccess.downloadScript(sdsConnection, param[1], param[2]);
+        // return sdsAccess.downloadScript(sdsConnection, scriptname, _path)
 
     } else {
 
 
     return new Promise<string>((resolve, reject) => {
 
-        if('downloadScript' === param[0]) {
-            ensureScriptName(param[1]).then((scriptname) => {
-                return ensurePath(param[1], true).then((_path) => {
-                    return sdsAccess.downloadScript(sdsConnection, scriptname, _path).then(() => {
-                        resolve(scriptname);
-                    });
-                });
-            }).catch((reason) => {
-                reject('download script failed: ' + reason);
-            });
-        }
-
-        else if('runScript' === param[0]) {
+        if('runScript' === param[0]) {
             ensureScriptName(param[1]).then((scriptname) => {
                 return sdsAccess.runScript(sdsConnection, scriptname).then((value) => {
                     for(let i=0; i<value.length; i++) {
@@ -804,7 +802,7 @@ async function switchOperation(sdsConnection: SDSConnection, param: any[]): Prom
             ensurePath(param[1], true).then((_path) => {
                 return sdsAccess.getScriptNamesFromServer(sdsConnection).then((scriptNames) => {
                     return reduce(scriptNames, function(numscripts, name) {
-                        return sdsAccess.downloadScript(sdsConnection, name, _path).then(() => {
+                        return sdsAccess.downloadScript(sdsConnection, [name, _path]).then(() => {
                             return numscripts + 1;
                         });
                     }, 0).then((numscripts) => {
