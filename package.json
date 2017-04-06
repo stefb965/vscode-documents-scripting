@@ -33,8 +33,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "extension.downloadAllScripts",
-        "title": "Download Scripts To Folder",
+        "command": "extension.uploadScript",
+        "title": "Upload Script",
         "category": "DOCUMENTS"
       },
       {
@@ -43,33 +43,33 @@
         "category": "DOCUMENTS"
       },
       {
-        "command": "extension.uploadAllScripts",
-        "title": "Upload Scripts From Folder",
-        "category": "DOCUMENTS"
-      },
-      {
-        "command": "extension.uploadScript",
-        "title": "Upload Script",
-        "category": "DOCUMENTS"
-      },
-      {
         "command": "extension.runScript",
         "title": "Run Script",
         "category": "DOCUMENTS"
       },
       {
-        "command": "extension.viewDocumentation",
-        "title": "View Documentation",
+        "command": "extension.compareScript",
+        "title": "Compare Script",
         "category": "DOCUMENTS"
       },
       {
-        "command": "extension.compareScript",
-        "title": "View Diff",
+        "command": "extension.uploadAllScripts",
+        "title": "Upload Scripts From Folder",
+        "category": "DOCUMENTS"
+      },
+      {
+        "command": "extension.downloadAllScripts",
+        "title": "Download Scripts To Folder",
         "category": "DOCUMENTS"
       },
       {
         "command": "extension.saveConfiguration",
         "title": "Change And Save Configuration",
+        "category": "DOCUMENTS"
+      },
+      {
+        "command": "extension.viewDocumentation",
+        "title": "View Documentation",
         "category": "DOCUMENTS"
       }
     ],
@@ -82,54 +82,71 @@
     "menus": {
       "explorer/context": [
         {
-          "command": "extension.uploadAllScripts",
-          "when": "resourceLangId == javascript"
-        },
-        {
-          "command": "extension.uploadAllScripts",
-          "when": "!resourceLangId"
-        },
-        {
-          "command": "extension.downloadAllScripts",
-          "when": "resourceLangId == javascript"
-        },
-        {
-          "command": "extension.downloadAllScripts",
-          "when": "!resourceLangId"
-        },
-        {
           "command": "extension.uploadScript",
-          "when": "resourceLangId == javascript"
+          "when": "resourceLangId == javascript",
+          "group": "DOCUMENTS@1"
         },
         {
           "command": "extension.downloadScript",
-          "when": "resourceLangId == javascript"
+          "when": "resourceLangId == javascript",
+          "group": "DOCUMENTS@2"
         },
         {
           "command": "extension.runScript",
-          "when": "resourceLangId == javascript"
+          "when": "resourceLangId == javascript",
+          "group": "DOCUMENTS@3"
         },
         {
           "command": "extension.compareScript",
-          "when": "resourceLangId == javascript"
+          "when": "resourceLangId == javascript",
+          "group": "DOCUMENTS@4"
+        },
+        {
+          "command": "extension.uploadAllScripts",
+          "when": "resourceLangId == javascript",
+          "group": "DOCUMENTS@5"
+        },
+        {
+          "command": "extension.uploadAllScripts",
+          "when": "!resourceLangId",
+          "group": "DOCUMENTS@6"
+        },
+        {
+          "command": "extension.downloadAllScripts",
+          "when": "resourceLangId == javascript",
+          "group": "DOCUMENTS@7"
+        },
+        {
+          "command": "extension.downloadAllScripts",
+          "when": "!resourceLangId",
+          "group": "DOCUMENTS@8"
         }
       ],
       "editor/context": [
         {
           "command": "extension.uploadScript",
-          "when": "resourceLangId == javascript"
+          "when": "resourceLangId == javascript",
+          "group": "DOCUMENTS@1"
         },
         {
           "command": "extension.downloadScript",
-          "when": "resourceLangId == javascript"
+          "when": "resourceLangId == javascript",
+          "group": "DOCUMENTS@2"
         },
         {
           "command": "extension.runScript",
-          "when": "resourceLangId == javascript"
+          "when": "resourceLangId == javascript",
+          "group": "DOCUMENTS@3"
+        },
+        {
+          "command": "extension.compareScript",
+          "when": "resourceLangId == javascript",
+          "group": "DOCUMENTS@4"
         },
         {
           "command": "extension.viewDocumentation",
-          "when": "resourceLangId == typescript"
+          "when": "resourceLangId == typescript",
+          "group": "DOCUMENTS@5"
         }
       ]
     }
