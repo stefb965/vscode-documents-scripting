@@ -20,7 +20,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:extension.activate",
+    "onCommand:extension.saveConfiguration",
     "onCommand:extension.uploadScript",
     "onCommand:extension.downloadScript",
     "onCommand:extension.runScript",
@@ -31,11 +31,6 @@
   "main": "./out/src/extension",
   "contributes": {
     "commands": [
-      {
-        "command": "extension.activate",
-        "title": "Activate",
-        "category": "DOCUMENTS"
-      },
       {
         "command": "extension.saveConfiguration",
         "title": "Create launch.json",

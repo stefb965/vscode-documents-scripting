@@ -72,6 +72,7 @@ export function activate(context: vscode.ExtensionContext) {
         launchjson = path.join(vscode.workspace.rootPath, '.vscode', 'launch.json');
     }
     let loginData: config.LoginData = new config.LoginData(launchjson);
+    loginData.getLoginData = createLoginData;
     context.subscriptions.push(loginData);
 
 
@@ -94,11 +95,7 @@ export function activate(context: vscode.ExtensionContext) {
                     vscode.window.setStatusBarMessage('uploaded: ' + scriptname);
                 });
             }).catch((reason) => {
-                if(sdsAccess.ERR_LOGIN_DATA === reason) {
-                    vscode.window.showErrorMessage(CREATE_LAUNCHJSON);
-                } else {
-                    vscode.window.showErrorMessage('upload script failed: ' + reason);
-                }
+                vscode.window.showErrorMessage('upload script failed: ' + reason);
             });
             
         })
@@ -128,11 +125,7 @@ export function activate(context: vscode.ExtensionContext) {
                                 vscode.window.setStatusBarMessage('uploaded: ' + scriptname);
                             });
                         }).catch((reason) => {
-                            if(sdsAccess.ERR_LOGIN_DATA === reason) {
-                                vscode.window.showErrorMessage(CREATE_LAUNCHJSON);
-                            } else {
-                                vscode.window.showErrorMessage('upload script failed: ' + reason);
-                            }
+                            vscode.window.showErrorMessage('upload script failed: ' + reason);
                         });
                     } else if(NEVER === value) {
                         disposableOnSave.dispose();
@@ -170,11 +163,7 @@ export function activate(context: vscode.ExtensionContext) {
                     });
                 });
             }).catch((reason) => {
-                if(sdsAccess.ERR_LOGIN_DATA === reason) {
-                    vscode.window.showErrorMessage(CREATE_LAUNCHJSON);
-                } else {
-                    vscode.window.showErrorMessage('download script failed: ' + reason);
-                }
+                vscode.window.showErrorMessage('download script failed: ' + reason);
             });
         })
     );
@@ -200,11 +189,7 @@ export function activate(context: vscode.ExtensionContext) {
                     myOutputChannel.show();
                 });
             }).catch((reason) => {
-                if(sdsAccess.ERR_LOGIN_DATA === reason) {
-                    vscode.window.showErrorMessage(CREATE_LAUNCHJSON);
-                } else {
-                    vscode.window.showErrorMessage('run script failed: ' + reason);
-                }
+                vscode.window.showErrorMessage('run script failed: ' + reason);
             });
         })
     );
@@ -236,11 +221,7 @@ export function activate(context: vscode.ExtensionContext) {
                         });
                     });
                 }).catch((reason) => {
-                    if(sdsAccess.ERR_LOGIN_DATA === reason) {
-                        vscode.window.showErrorMessage(CREATE_LAUNCHJSON);
-                    } else {
-                        vscode.window.showErrorMessage('Compare script failed: ' + reason);
-                    }
+                    vscode.window.showErrorMessage('Compare script failed: ' + reason);
                 });
             } else {
                 if(!vscode.workspace) {
@@ -272,11 +253,7 @@ export function activate(context: vscode.ExtensionContext) {
                     vscode.window.setStatusBarMessage('uploaded ' + numscripts + ' scripts');
                 });
             }).catch((reason) => {
-                if(sdsAccess.ERR_LOGIN_DATA === reason) {
-                    vscode.window.showErrorMessage(CREATE_LAUNCHJSON);
-                } else {
-                    vscode.window.showErrorMessage('upload all failed: ' + reason);
-                }
+                vscode.window.showErrorMessage('upload all failed: ' + reason);
             });
         })
     );
@@ -299,11 +276,7 @@ export function activate(context: vscode.ExtensionContext) {
                     vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
                 });
             }).catch((reason) => {
-                if(sdsAccess.ERR_LOGIN_DATA === reason) {
-                    vscode.window.showErrorMessage(CREATE_LAUNCHJSON);
-                } else {
-                    vscode.window.showErrorMessage('download all failed: ' + reason);
-                }
+                vscode.window.showErrorMessage('download all failed: ' + reason);
             });
         })
     );
@@ -444,9 +417,7 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    if(loginData.ensureLoginData()) {
-        vscode.window.setStatusBarMessage('vscode-documents-scripting is active');
-    }
+    vscode.window.setStatusBarMessage('vscode-documents-scripting is active');
 }
 
 
@@ -474,177 +445,6 @@ function compareScript(_path, scriptname) {
         });
     }
 }
-
-
-
-
-
-async function createLoginData(_loginData:config.LoginData): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-        askForLoginData(_loginData).then(() => {
-            return writeLaunchJson(_loginData).then(() => {
-                resolve();
-            });
-        }).catch((reason) => {
-            reject('did not save login data: ' + reason);
-        });
-    });
-}
-
-async function askForLoginData(_loginData:config.LoginData): Promise<void> {
-    console.log('askForLoginData');
-    
-    const SERVER: string = 'localhost';
-    const PORT: number = 11000;
-    const PRINCIPAL: string = 'dopaag';
-    const USERNAME: string = 'admin';
-    const PASSWORD = '';
-
-    return new Promise<void>((resolve, reject) => {
-        // showQuickPick() and showInputBox() return thenable(value) objects,
-        // that is, these objects always have a then(value) function,
-        // value can't be empty iff it's predefined in options
-        vscode.window.showInputBox({
-            prompt: 'Please enter the server',
-            value: SERVER,
-            ignoreFocusOut: true,
-        }).then((server) => {
-            if(server) {
-                _loginData.server = server;
-                return vscode.window.showInputBox({
-                    prompt: 'Please enter the port',
-                    value: _loginData.port? _loginData.port.toString(): PORT.toString(),
-                    ignoreFocusOut: true,
-                });
-            }
-        }).then((port) => {
-            if(port) {
-                _loginData.port = Number(port);
-                return vscode.window.showInputBox({
-                    prompt: 'Please enter the principal',
-                    value: _loginData.principal? _loginData.principal: PRINCIPAL,
-                    ignoreFocusOut: true,
-                });
-            }
-        }).then((principal) => {
-            if(principal) {
-                _loginData.principal = principal;
-                return vscode.window.showInputBox({
-                    prompt: 'Please enter the username',
-                    value: _loginData.username? _loginData.username: USERNAME,
-                    ignoreFocusOut: true,
-                });
-            }
-        }).then((username) => {
-            if(username) {
-                _loginData.username = username;
-                return vscode.window.showInputBox({
-                    prompt: 'Please enter the password',
-                    value: PASSWORD,
-                    password: true,
-                    ignoreFocusOut: true,
-                });
-            }
-        }).then((password) => {
-            if(password != undefined) {
-                _loginData.password = password;
-                resolve();
-            } else {
-                reject();
-                vscode.window.showErrorMessage('Input login data cancelled: command cannot be executed');
-            }
-        });
-    });
-}
-
-
-
-async function writeLaunchJson(_loginData:config.LoginData): Promise<void> {
-    console.log('writeLaunchJson');
-
-    return new Promise<void>((resolve, reject) => {
-        initialConfigurations.forEach((config: any) => {
-            if (config.request == 'launch') {
-                config.host = _loginData.server;
-                config.applicationPort = _loginData.port;
-                config.principal = _loginData.principal;
-                config.username = _loginData.username;
-                config.password = _loginData.password;
-            }
-        });
-
-        const configurations = JSON.stringify(initialConfigurations, null, '\t')
-            .split('\n').map(line => '\t' + line).join('\n').trim();
-
-        const data = [
-            '{',
-            '\t// Use IntelliSense to learn about possible configuration attributes.',
-            '\t// Hover to view descriptions of existing attributes.',
-            '\t// For more information, visit',
-            '\t// https://github.com/otris/vscode-janus-debug/wiki/Launching-the-Debugger',
-            '\t"version": "0.2.0",',
-            '\t"configurations": ' + configurations,
-            '}',
-        ].join('\n');
-
-
-        let rootPath = vscode.workspace.rootPath;
-        if(rootPath) {
-            let filename = path.join(rootPath, '.vscode', 'launch.json');
-            writeFile(data, filename, true).then(() => {
-                resolve();
-            }).catch((reason) => {
-                reject(reason);
-            });
-        } else {
-            reject('folder must be open to save login data');
-        }
-    });
-}
-
-
-async function writeFile(data, filename, allowSubFolder = false) {
-    console.log('writeConfigFile');
-
-    return new Promise<void>((resolve, reject) => {
-
-        if(path.extname(filename)) {
-            let folder = path.dirname(filename);
-            fs.writeFile(filename, data, {encoding: 'utf8'}, function(error) {
-                if(error) {
-                    if(error.code === 'ENOENT' && allowSubFolder) {
-                        fs.mkdir(folder, function(error) {
-                            if(error) {
-                                reject(error);
-                            } else {
-                                console.log('created path: ' + folder);
-                                fs.writeFile(filename, data, {encoding: 'utf8'}, function(error) {
-                                    if(error) {
-                                        reject(error);
-                                    } else {
-                                        console.log('wrote file: ' +  filename);
-                                        resolve();
-                                    }
-                                });
-                            }
-                        });
-                    } else {
-                        reject(error);
-                    }
-                } else {
-                    console.log('wrote file: ' +  filename);
-                    resolve();
-                }
-            });
-            
-        }
-
-    });
-}
-
-
-
-
 
 
 
@@ -836,7 +636,149 @@ async function ensureScript(param?: string | vscode.TextDocument): Promise<sdsAc
 
 
 
-// todo getJSFromTS
+
+// additional function to get login data...
+
+
+async function createLoginData(_loginData:config.LoginData): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+        askForLoginData(_loginData).then(() => {
+            return writeLaunchJson(_loginData).then(() => {
+                resolve();
+            });
+        }).catch((reason) => {
+            reject('did not save login data: ' + reason);
+        });
+    });
+}
+
+async function askForLoginData(_loginData:config.LoginData): Promise<void> {
+    console.log('askForLoginData');
+    
+    const SERVER: string = 'localhost';
+    const PORT: number = 11000;
+    const PRINCIPAL: string = 'dopaag';
+    const USERNAME: string = 'admin';
+    const PASSWORD = '';
+
+    return new Promise<void>((resolve, reject) => {
+        // showQuickPick() and showInputBox() return thenable(value) objects,
+        // that is, these objects always have a then(value) function,
+        // value can't be empty iff it's predefined in options
+        vscode.window.showInputBox({
+            prompt: 'Please enter the server',
+            value: SERVER,
+            ignoreFocusOut: true,
+        }).then((server) => {
+            if(server) {
+                _loginData.server = server;
+                return vscode.window.showInputBox({
+                    prompt: 'Please enter the port',
+                    value: _loginData.port? _loginData.port.toString(): PORT.toString(),
+                    ignoreFocusOut: true,
+                });
+            }
+        }).then((port) => {
+            if(port) {
+                _loginData.port = Number(port);
+                return vscode.window.showInputBox({
+                    prompt: 'Please enter the principal',
+                    value: _loginData.principal? _loginData.principal: PRINCIPAL,
+                    ignoreFocusOut: true,
+                });
+            }
+        }).then((principal) => {
+            if(principal) {
+                _loginData.principal = principal;
+                return vscode.window.showInputBox({
+                    prompt: 'Please enter the username',
+                    value: _loginData.username? _loginData.username: USERNAME,
+                    ignoreFocusOut: true,
+                });
+            }
+        }).then((username) => {
+            if(username) {
+                _loginData.username = username;
+                return vscode.window.showInputBox({
+                    prompt: 'Please enter the password',
+                    value: PASSWORD,
+                    password: true,
+                    ignoreFocusOut: true,
+                });
+            }
+        }).then((password) => {
+            if(password != undefined) {
+                _loginData.password = password;
+                resolve();
+            } else {
+                reject();
+                vscode.window.showErrorMessage('Input login data cancelled: command cannot be executed');
+            }
+        });
+    });
+}
+
+
+
+async function writeLaunchJson(_loginData:config.LoginData): Promise<void> {
+    console.log('writeLaunchJson');
+
+    return new Promise<void>((resolve, reject) => {
+        initialConfigurations.forEach((config: any) => {
+            if (config.request == 'launch') {
+                config.host = _loginData.server;
+                config.applicationPort = _loginData.port;
+                config.principal = _loginData.principal;
+                config.username = _loginData.username;
+                config.password = _loginData.password;
+            }
+        });
+
+        const configurations = JSON.stringify(initialConfigurations, null, '\t')
+            .split('\n').map(line => '\t' + line).join('\n').trim();
+
+        const data = [
+            '{',
+            '\t// Use IntelliSense to learn about possible configuration attributes.',
+            '\t// Hover to view descriptions of existing attributes.',
+            '\t// For more information, visit',
+            '\t// https://github.com/otris/vscode-janus-debug/wiki/Launching-the-Debugger',
+            '\t"version": "0.2.0",',
+            '\t"configurations": ' + configurations,
+            '}',
+        ].join('\n');
+
+
+        let rootPath = vscode.workspace.rootPath;
+        if(rootPath) {
+            let filename = path.join(rootPath, '.vscode', 'launch.json');
+            sdsAccess.writeFile(data, filename, true).then(() => {
+                resolve();
+            }).catch((reason) => {
+                reject(reason);
+            });
+        } else {
+            reject('folder must be open to save login data');
+        }
+    });
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+// todo...
+
+
+// rename to getJSFromTS
 // async function uploadJSFromTS(sdsConnection: SDSConnection, textDocument: vscode.TextDocument): Promise<void> {
 //     return new Promise<void>((resolve, reject) => {
 
