@@ -20,18 +20,27 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:extension.downloadAllScripts",
-    "onCommand:extension.downloadScript",
-    "onCommand:extension.uploadAllScripts",
+    "onCommand:extension.activate",
     "onCommand:extension.uploadScript",
+    "onCommand:extension.downloadScript",
     "onCommand:extension.runScript",
-    "onCommand:extension.viewDocumentation",
     "onCommand:extension.compareScript",
-    "onCommand:extension.saveConfiguration"
+    "onCommand:extension.uploadAllScripts",
+    "onCommand:extension.downloadAllScripts"
   ],
   "main": "./out/src/extension",
   "contributes": {
     "commands": [
+      {
+        "command": "extension.activate",
+        "title": "Activate",
+        "category": "DOCUMENTS"
+      },
+      {
+        "command": "extension.saveConfiguration",
+        "title": "Create launch.json",
+        "category": "DOCUMENTS"
+      },
       {
         "command": "extension.uploadScript",
         "title": "Upload Script",
@@ -60,11 +69,6 @@
       {
         "command": "extension.downloadAllScripts",
         "title": "Download Scripts To Folder",
-        "category": "DOCUMENTS"
-      },
-      {
-        "command": "extension.saveConfiguration",
-        "title": "Change And Save Configuration",
         "category": "DOCUMENTS"
       },
       {

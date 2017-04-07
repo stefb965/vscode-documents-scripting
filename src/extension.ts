@@ -14,8 +14,6 @@ const open = require('open');
 const urlExists = require('url-exists');
 
 
-const LAUNCH_JSON_NAME: string = 'launch.json';
-
 const initialConfigurations = [
     {
         name: 'Launch Script on Server',
@@ -53,39 +51,31 @@ const initialConfigurations = [
 
 
 
-// todo
-let myOutputChannel: vscode.OutputChannel = vscode.window.createOutputChannel('MyChannelName');
 
 
-// hack
+// like eclipse plugin
 const COMPARE_FOLDER = '.compare';
 const COMPARE_FILE_PREF = 'compare_';
 
-
-
+const CREATE_LAUNCHJSON = 'Please activate or create launch.json first';
 
 
 export function activate(context: vscode.ExtensionContext) {
 
+    let myOutputChannel: vscode.OutputChannel = vscode.window.createOutputChannel('MyChannelName');
 
-    // set up...
+    // login data...
 
     // object loginData should be deleted on deactivation
     let launchjson;
     if(vscode.workspace) {
-        launchjson = path.join(vscode.workspace.rootPath, '.vscode', LAUNCH_JSON_NAME);
+        launchjson = path.join(vscode.workspace.rootPath, '.vscode', 'launch.json');
     }
     let loginData: config.LoginData = new config.LoginData(launchjson);
     context.subscriptions.push(loginData);
 
-    if(!loginData.ensureLoginData())
-    {
-        inputProcedure(loginData);
-    }
-
 
     // register commands...
-
 
 
     // ----------------------------------------------------------
@@ -104,8 +94,13 @@ export function activate(context: vscode.ExtensionContext) {
                     vscode.window.setStatusBarMessage('uploaded: ' + scriptname);
                 });
             }).catch((reason) => {
-                vscode.window.showErrorMessage('upload script failed: ' + reason);
+                if(sdsAccess.ERR_LOGIN_DATA === reason) {
+                    vscode.window.showErrorMessage(CREATE_LAUNCHJSON);
+                } else {
+                    vscode.window.showErrorMessage('upload script failed: ' + reason);
+                }
             });
+            
         })
     );
 
@@ -133,7 +128,11 @@ export function activate(context: vscode.ExtensionContext) {
                                 vscode.window.setStatusBarMessage('uploaded: ' + scriptname);
                             });
                         }).catch((reason) => {
-                            vscode.window.showErrorMessage('upload script failed: ' + reason);
+                            if(sdsAccess.ERR_LOGIN_DATA === reason) {
+                                vscode.window.showErrorMessage(CREATE_LAUNCHJSON);
+                            } else {
+                                vscode.window.showErrorMessage('upload script failed: ' + reason);
+                            }
                         });
                     } else if(NEVER === value) {
                         disposableOnSave.dispose();
@@ -171,7 +170,11 @@ export function activate(context: vscode.ExtensionContext) {
                     });
                 });
             }).catch((reason) => {
-                vscode.window.showErrorMessage('download script failed: ' + reason);
+                if(sdsAccess.ERR_LOGIN_DATA === reason) {
+                    vscode.window.showErrorMessage(CREATE_LAUNCHJSON);
+                } else {
+                    vscode.window.showErrorMessage('download script failed: ' + reason);
+                }
             });
         })
     );
@@ -197,7 +200,11 @@ export function activate(context: vscode.ExtensionContext) {
                     myOutputChannel.show();
                 });
             }).catch((reason) => {
-                vscode.window.showErrorMessage('run script failed: ' + reason);
+                if(sdsAccess.ERR_LOGIN_DATA === reason) {
+                    vscode.window.showErrorMessage(CREATE_LAUNCHJSON);
+                } else {
+                    vscode.window.showErrorMessage('run script failed: ' + reason);
+                }
             });
         })
     );
@@ -218,7 +225,7 @@ export function activate(context: vscode.ExtensionContext) {
                 }
             }
 
-            // todo ask for scriptpath?
+            // todo ask for scriptpath
             if(_param && vscode.workspace) {
                 ensureScriptName(_param).then((scriptname) => {
                     return ensurePath(_param, true).then((_path) => {
@@ -229,7 +236,11 @@ export function activate(context: vscode.ExtensionContext) {
                         });
                     });
                 }).catch((reason) => {
-                    vscode.window.showErrorMessage('Compare script failed: ' + reason);
+                    if(sdsAccess.ERR_LOGIN_DATA === reason) {
+                        vscode.window.showErrorMessage(CREATE_LAUNCHJSON);
+                    } else {
+                        vscode.window.showErrorMessage('Compare script failed: ' + reason);
+                    }
                 });
             } else {
                 if(!vscode.workspace) {
@@ -261,7 +272,11 @@ export function activate(context: vscode.ExtensionContext) {
                     vscode.window.setStatusBarMessage('uploaded ' + numscripts + ' scripts');
                 });
             }).catch((reason) => {
-                vscode.window.showErrorMessage('upload all failed: ' + reason);
+                if(sdsAccess.ERR_LOGIN_DATA === reason) {
+                    vscode.window.showErrorMessage(CREATE_LAUNCHJSON);
+                } else {
+                    vscode.window.showErrorMessage('upload all failed: ' + reason);
+                }
             });
         })
     );
@@ -284,7 +299,11 @@ export function activate(context: vscode.ExtensionContext) {
                     vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
                 });
             }).catch((reason) => {
-                vscode.window.showErrorMessage('download all failed: ' + reason);
+                if(sdsAccess.ERR_LOGIN_DATA === reason) {
+                    vscode.window.showErrorMessage(CREATE_LAUNCHJSON);
+                } else {
+                    vscode.window.showErrorMessage('download all failed: ' + reason);
+                }
             });
         })
     );
@@ -297,9 +316,31 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.saveConfiguration', () => {
             if(loginData) {
-                inputProcedure(loginData);
+                createLoginData(loginData).then(() => {
+                    vscode.window.setStatusBarMessage('Saved login data');
+                }).catch((reason) => {
+                    vscode.window.showWarningMessage(reason);
+                });
             } else {
-                vscode.window.showErrorMessage('login data missing');
+                vscode.window.showErrorMessage('unexpected error: login data object missing');
+            }
+        })
+    );
+
+
+    // ----------------------------------------------------------
+    //             Activate
+    // ----------------------------------------------------------
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.activate', () => {
+            if(loginData) {
+                createLoginData(loginData).then(() => {
+                    vscode.window.setStatusBarMessage('vscode-documents-scripting is active');
+                }).catch((reason) => {
+                    vscode.window.showWarningMessage(reason);
+                });
+            } else {
+                vscode.window.showErrorMessage('unexpected error: login data object missing');
             }
         })
     );
@@ -402,11 +443,10 @@ export function activate(context: vscode.ExtensionContext) {
             });
         })
     );
-    
 
-
-    vscode.window.setStatusBarMessage('vscode-documents-scripting is active');
-
+    if(loginData.ensureLoginData()) {
+        vscode.window.setStatusBarMessage('vscode-documents-scripting is active');
+    }
 }
 
 
@@ -439,16 +479,14 @@ function compareScript(_path, scriptname) {
 
 
 
-async function inputProcedure(_loginData:config.LoginData): Promise<void> {
+async function createLoginData(_loginData:config.LoginData): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         askForLoginData(_loginData).then(() => {
             return writeLaunchJson(_loginData).then(() => {
-                vscode.window.setStatusBarMessage('Saved login data');
                 resolve();
             });
         }).catch((reason) => {
-            vscode.window.showErrorMessage('did not save login data: ' + reason);
-            reject(reason);
+            reject('did not save login data: ' + reason);
         });
     });
 }
@@ -524,61 +562,67 @@ async function askForLoginData(_loginData:config.LoginData): Promise<void> {
 async function writeLaunchJson(_loginData:config.LoginData): Promise<void> {
     console.log('writeLaunchJson');
 
-    initialConfigurations.forEach((config: any) => {
-        if (config.request == 'launch') {
-            config.host = _loginData.server;
-            config.applicationPort = _loginData.port;
-            config.principal = _loginData.principal;
-            config.username = _loginData.username;
-            config.password = _loginData.password;
+    return new Promise<void>((resolve, reject) => {
+        initialConfigurations.forEach((config: any) => {
+            if (config.request == 'launch') {
+                config.host = _loginData.server;
+                config.applicationPort = _loginData.port;
+                config.principal = _loginData.principal;
+                config.username = _loginData.username;
+                config.password = _loginData.password;
+            }
+        });
+
+        const configurations = JSON.stringify(initialConfigurations, null, '\t')
+            .split('\n').map(line => '\t' + line).join('\n').trim();
+
+        const data = [
+            '{',
+            '\t// Use IntelliSense to learn about possible configuration attributes.',
+            '\t// Hover to view descriptions of existing attributes.',
+            '\t// For more information, visit',
+            '\t// https://github.com/otris/vscode-janus-debug/wiki/Launching-the-Debugger',
+            '\t"version": "0.2.0",',
+            '\t"configurations": ' + configurations,
+            '}',
+        ].join('\n');
+
+
+        let rootPath = vscode.workspace.rootPath;
+        if(rootPath) {
+            let filename = path.join(rootPath, '.vscode', 'launch.json');
+            writeFile(data, filename, true).then(() => {
+                resolve();
+            }).catch((reason) => {
+                reject(reason);
+            });
+        } else {
+            reject('folder must be open to save login data');
         }
     });
-
-    const configurations = JSON.stringify(initialConfigurations, null, '\t')
-        .split('\n').map(line => '\t' + line).join('\n').trim();
-
-    const data = [
-        '{',
-        '\t// Use IntelliSense to learn about possible configuration attributes.',
-        '\t// Hover to view descriptions of existing attributes.',
-        '\t// For more information, visit',
-        '\t// https://github.com/otris/vscode-janus-debug/wiki/Launching-the-Debugger',
-        '\t"version": "0.2.0",',
-        '\t"configurations": ' + configurations,
-        '}',
-    ].join('\n');
-
-    return writeFileToWorkspace(data);
 }
 
 
-async function writeFileToWorkspace (data) {
+async function writeFile(data, filename, allowSubFolder = false) {
     console.log('writeConfigFile');
 
     return new Promise<void>((resolve, reject) => {
-        let rootPath = vscode.workspace.rootPath;
-        
-        if(!rootPath) {
-            vscode.window.showWarningMessage("login data can only be saved in workspace");
-            resolve();
 
-        } else {
-            let _path: string = path.join(rootPath, '.vscode');
-            let file = path.join(_path, LAUNCH_JSON_NAME);
-
-            fs.writeFile(file, data, {encoding: 'utf8'}, function(error) {
+        if(path.extname(filename)) {
+            let folder = path.dirname(filename);
+            fs.writeFile(filename, data, {encoding: 'utf8'}, function(error) {
                 if(error) {
-                    if(error.code === 'ENOENT') {
-                        fs.mkdir(_path, function(error) {
+                    if(error.code === 'ENOENT' && allowSubFolder) {
+                        fs.mkdir(folder, function(error) {
                             if(error) {
                                 reject(error);
                             } else {
-                                console.log('created path: ' + _path);
-                                fs.writeFile(file, data, {encoding: 'utf8'}, function(error) {
+                                console.log('created path: ' + folder);
+                                fs.writeFile(filename, data, {encoding: 'utf8'}, function(error) {
                                     if(error) {
                                         reject(error);
                                     } else {
-                                        console.log('wrote file: ' +  file);
+                                        console.log('wrote file: ' +  filename);
                                         resolve();
                                     }
                                 });
@@ -588,12 +632,13 @@ async function writeFileToWorkspace (data) {
                         reject(error);
                     }
                 } else {
-                    console.log('wrote file: ' +  file);
+                    console.log('wrote file: ' +  filename);
                     resolve();
                 }
             });
-
+            
         }
+
     });
 }
 
@@ -603,31 +648,16 @@ async function writeFileToWorkspace (data) {
 
 
 
-function getActivePath(): string {
-    console.log('getActivePath');
-
-    // file open?
-    let editor = vscode.window.activeTextEditor;
-    if (editor) {
-        return path.dirname(editor.document.fileName);
-
-    // root path?
-    } else if(vscode.workspace) {
-        return vscode.workspace.rootPath;
-    }
-
-    return '';
-}
 
 
 
 
-function getPathFromFileOrDir(parampath: string, allowSubDir = false): Promise<string> {
+function getFolder(parampath: string, allowSubFolder = false): Promise<string> {
     return new Promise<string>((resolve, reject) => {
         fs.stat(parampath, function (err, stats) {
             
             if(err) {
-                if(allowSubDir && 'ENOENT' === err.code) {
+                if(allowSubFolder && 'ENOENT' === err.code) {
                     let p = parampath.split(path.sep);
                     let newfolder = p.pop();
                     let _path = p.join(path.sep);
@@ -663,51 +693,57 @@ function getPathFromFileOrDir(parampath: string, allowSubDir = false): Promise<s
 }
 
 
-async function ensurePath(parampath: string, allowSubDir = false): Promise<string> {
-    console.log('ensureDownloadPath');
+async function ensurePath(fileOrFolder: string, allowSubDir = false): Promise<string> {
+    console.log('ensurePath');
 
     return new Promise<string>((resolve, reject) => {
 
         // given path must be absolute
-        if(parampath) {
+        if(fileOrFolder) {
 
             // if there's a workspace, returned path must be a subfolder of rootPath
-            if(!vscode.workspace || parampath.startsWith(vscode.workspace.rootPath)) {
+            if(!vscode.workspace || fileOrFolder.startsWith(vscode.workspace.rootPath)) {
 
-                // return path of given file or folder
-                getPathFromFileOrDir(parampath).then((retpath) => {
+                // check folder and get folder from file
+                getFolder(fileOrFolder).then((retpath) => {
                     resolve(retpath);
                 }).catch((reason) => {
                     reject(reason);
                 });
             
             } else {
-                reject(parampath + ' is not a subfolder of ' + vscode.workspace.rootPath);
+                reject(fileOrFolder + ' is not a subfolder of ' + vscode.workspace.rootPath);
             }
         } else {
 
+            // set default path
+            let defaultPath = '';
+            if (vscode.window.activeTextEditor) {
+                defaultPath = path.dirname(vscode.window.activeTextEditor.document.fileName);
+            } else if(vscode.workspace) {
+                defaultPath = vscode.workspace.rootPath;
+            }
             // ask for path
-            let defaultPath = getActivePath();
             vscode.window.showInputBox({
                 prompt: 'Please enter the download path',
                 value: defaultPath,
                 ignoreFocusOut: true,
-            }).then((inputpath) => {
+            }).then((input) => {
 
                 // input path must be absolute
-                if(inputpath) {
+                if(input) {
                         
                     // if there's a workspace, returned path must be subfolder of rootPath
-                    if(!vscode.workspace || inputpath.startsWith(vscode.workspace.rootPath)) {
+                    if(!vscode.workspace || input.startsWith(vscode.workspace.rootPath)) {
 
-                        // return path of input file or folder
-                        getPathFromFileOrDir(inputpath, allowSubDir).then((retpath) => {
+                        // check folder and get folder from file
+                        getFolder(input, allowSubDir).then((retpath) => {
                             resolve(retpath);
                         }).catch((reason) => {
                             reject(reason);
                         });
                     } else {
-                        reject(inputpath + ' is not a subfolder of ' + vscode.workspace.rootPath);
+                        reject(input + ' is not a subfolder of ' + vscode.workspace.rootPath);
                     }
                 } else {
                     reject('no path');
