@@ -6,9 +6,8 @@ import * as os from 'os';
 import * as vscode from 'vscode';
 import * as reduce from 'reduce-for-promises';
 import * as tsc from 'typescript-compiler';
+import * as nodeDoc from 'node-documents-scripting';
 
-import * as config from './config';
-import * as sdsAccess from './sdsAccess';
 
 const open = require('open');
 const urlExists = require('url-exists');
@@ -71,7 +70,7 @@ export function activate(context: vscode.ExtensionContext) {
     if(vscode.workspace) {
         launchjson = path.join(vscode.workspace.rootPath, '.vscode', 'launch.json');
     }
-    let loginData: config.LoginData = new config.LoginData(launchjson);
+    let loginData: nodeDoc.LoginData = new nodeDoc.LoginData(launchjson);
     loginData.getLoginData = createLoginData;
     context.subscriptions.push(loginData);
 
@@ -90,7 +89,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
             ensureScript(_param).then((_script) => {
                 let params = [_script.name, _script.sourceCode];
-                return sdsAccess.sdsSession(loginData, params, sdsAccess.uploadScript).then((value) => {
+                return nodeDoc.sdsSession(loginData, params, nodeDoc.uploadScript).then((value) => {
                     let scriptname = value[0];
                     vscode.window.setStatusBarMessage('uploaded: ' + scriptname);
                 });
@@ -120,7 +119,7 @@ export function activate(context: vscode.ExtensionContext) {
                     if(UPLOAD === value) {
                         ensureScript(textDocument.fileName).then((_script) => {
                             let params = [_script.name, _script.sourceCode];
-                            return sdsAccess.sdsSession(loginData, params, sdsAccess.uploadScript).then((value) => {
+                            return nodeDoc.sdsSession(loginData, params, nodeDoc.uploadScript).then((value) => {
                                 let scriptname = value[0];
                                 vscode.window.setStatusBarMessage('uploaded: ' + scriptname);
                             });
@@ -157,8 +156,8 @@ export function activate(context: vscode.ExtensionContext) {
 
             ensureScriptName(_param).then((scriptname) => {
                 return ensurePath(_param, true).then((_path) => {
-                    let params = [scriptname, _path];
-                    return sdsAccess.sdsSession(loginData, params, sdsAccess.downloadScript).then((value) => {
+                    let params = [scriptname, _path[0]];
+                    return nodeDoc.sdsSession(loginData, params, nodeDoc.downloadScript).then((value) => {
                         vscode.window.setStatusBarMessage('downloaded: ' + scriptname);
                     });
                 });
@@ -181,7 +180,7 @@ export function activate(context: vscode.ExtensionContext) {
 
             ensureScriptName(_param).then((scriptname) => {
                 let params = [scriptname];
-                return sdsAccess.sdsSession(loginData, params, sdsAccess.runScript).then((value) => {
+                return nodeDoc.sdsSession(loginData, params, nodeDoc.runScript).then((value) => {
                     for(let i=0; i<value.length; i++) {
                         console.log("line[" + i + "]: " + value[i]);
                         myOutputChannel.append(value[i] + os.EOL);
@@ -204,31 +203,25 @@ export function activate(context: vscode.ExtensionContext) {
             let _param;
             if(param) {
                 _param = param._fsPath;
-            } else {
-                if(vscode.window.activeTextEditor) {
-                    _param = vscode.window.activeTextEditor.document.fileName;
-                }
             }
 
-            // todo ask for scriptpath
-            if(_param && vscode.workspace) {
-                ensureScriptName(_param).then((scriptname) => {
-                    return ensurePath(_param, true).then((_path) => {
+            // todo should be possible without workspace
+            if(vscode.workspace) {
+                ensurePath(_param, false, true).then((_path) => {
+                    let scriptfolder = _path[0];
+                    let _scriptname = _path[1];
+                    return ensureScriptName(_scriptname).then((scriptname) => {
                         let comparepath = path.join(vscode.workspace.rootPath, COMPARE_FOLDER);
                         let params = [scriptname, comparepath, COMPARE_FILE_PREF + scriptname];
-                        return sdsAccess.sdsSession(loginData, params, sdsAccess.downloadScript).then((value) => {
-                            compareScript(_path, scriptname);
+                        return nodeDoc.sdsSession(loginData, params, nodeDoc.downloadScript).then((value) => {
+                            compareScript(scriptfolder, scriptname);
                         });
                     });
                 }).catch((reason) => {
                     vscode.window.showErrorMessage('Compare script failed: ' + reason);
                 });
             } else {
-                if(!vscode.workspace) {
-                    vscode.window.showErrorMessage('Please open folder');
-                } else if(!_param) {
-                    vscode.window.showErrorMessage('Please open file or use file context menu');
-                }
+                vscode.window.showErrorMessage('Please open folder');
             }
         })
     );
@@ -247,8 +240,8 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             ensurePath(_param).then((folder) => {
-                let params = [folder];
-                return sdsAccess.sdsSession(loginData, params, sdsAccess.uploadAll).then((value) => {
+                let params = [folder[0]];
+                return nodeDoc.sdsSession(loginData, params, nodeDoc.uploadAll).then((value) => {
                     let numscripts = value[0];
                     vscode.window.setStatusBarMessage('uploaded ' + numscripts + ' scripts');
                 });
@@ -270,8 +263,8 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             ensurePath(_param, true).then((_path) => {
-                let params = [_path];
-                return sdsAccess.sdsSession(loginData, params, sdsAccess.dwonloadAll).then((value) => {
+                let params = [_path[0]];
+                return nodeDoc.sdsSession(loginData, params, nodeDoc.dwonloadAll).then((value) => {
                     let numscripts = value[0];
                     vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
                 });
@@ -452,13 +445,13 @@ function compareScript(_path, scriptname) {
 
 
 
-function getFolder(parampath: string, allowSubFolder = false): Promise<string> {
-    return new Promise<string>((resolve, reject) => {
-        fs.stat(parampath, function (err, stats) {
+function getFolder(fileOrFolder: string, allowSubFolder = false): Promise<string[]> {
+    return new Promise<string[]>((resolve, reject) => {
+        fs.stat(fileOrFolder, function (err, stats) {
             
             if(err) {
-                if(allowSubFolder && 'ENOENT' === err.code) {
-                    let p = parampath.split(path.sep);
+                if(allowSubFolder && 'ENOENT' === err.code && !path.extname(fileOrFolder)) {
+                    let p = fileOrFolder.split(path.sep);
                     let newfolder = p.pop();
                     let _path = p.join(path.sep);
                     fs.stat(_path, function (err, stats) {
@@ -470,7 +463,7 @@ function getFolder(parampath: string, allowSubFolder = false): Promise<string> {
                             }
                         } else {
                             if(stats.isDirectory()) {
-                                resolve(path.join(_path, newfolder));
+                                resolve([path.join(_path, newfolder)]);
                             } else {
                                 reject('can only create a single subfolder on a valid path');
                             }
@@ -481,11 +474,11 @@ function getFolder(parampath: string, allowSubFolder = false): Promise<string> {
                 }
             } else {
                 if(stats.isDirectory()) {
-                    resolve(parampath);
+                    resolve([fileOrFolder]);
                 } else if(stats.isFile()) {
-                    resolve(path.dirname(parampath));
+                    resolve([path.dirname(fileOrFolder), path.basename(fileOrFolder, '.js')]);
                 } else {
-                    reject('unexpected error in ' + parampath);
+                    reject('unexpected error in ' + fileOrFolder);
                 }
             }
         });
@@ -493,10 +486,10 @@ function getFolder(parampath: string, allowSubFolder = false): Promise<string> {
 }
 
 
-async function ensurePath(fileOrFolder: string, allowSubDir = false): Promise<string> {
+async function ensurePath(fileOrFolder: string, allowSubDir = false, withBaseName = false): Promise<string[]> {
     console.log('ensurePath');
 
-    return new Promise<string>((resolve, reject) => {
+    return new Promise<string[]>((resolve, reject) => {
 
         // given path must be absolute
         if(fileOrFolder) {
@@ -519,13 +512,18 @@ async function ensurePath(fileOrFolder: string, allowSubDir = false): Promise<st
             // set default path
             let defaultPath = '';
             if (vscode.window.activeTextEditor) {
-                defaultPath = path.dirname(vscode.window.activeTextEditor.document.fileName);
-            } else if(vscode.workspace) {
+                if(withBaseName) {
+                    defaultPath = vscode.window.activeTextEditor.document.fileName;
+                } else {
+                    defaultPath = path.dirname(vscode.window.activeTextEditor.document.fileName);
+                }
+            } else if(vscode.workspace && !withBaseName) {
                 defaultPath = vscode.workspace.rootPath;
             }
             // ask for path
+            let _promt = withBaseName? 'Please enter the script':'Please enter the folder';
             vscode.window.showInputBox({
-                prompt: 'Please enter the download path',
+                prompt: _promt,
                 value: defaultPath,
                 ignoreFocusOut: true,
             }).then((input) => {
@@ -534,7 +532,7 @@ async function ensurePath(fileOrFolder: string, allowSubDir = false): Promise<st
                 if(input) {
                         
                     // if there's a workspace, returned path must be subfolder of rootPath
-                    if(!vscode.workspace || input.startsWith(vscode.workspace.rootPath)) {
+                    if(!vscode.workspace || input.toLowerCase().startsWith(vscode.workspace.rootPath)) {
 
                         // check folder and get folder from file
                         getFolder(input, allowSubDir).then((retpath) => {
@@ -586,13 +584,13 @@ async function ensureScriptName(paramscript?: string): Promise<string> {
 
 
 
-async function ensureScript(param?: string | vscode.TextDocument): Promise<sdsAccess.script> {
+async function ensureScript(param?: string | vscode.TextDocument): Promise<nodeDoc.script> {
     console.log('ensureScript');
-    return new Promise<sdsAccess.script>((resolve, reject) => {
+    return new Promise<nodeDoc.script>((resolve, reject) => {
 
         if(param) {
             if(typeof param === 'string') {
-                let ret = sdsAccess.getScript(param);
+                let ret = nodeDoc.getScript(param);
                 if(typeof ret !== 'string') {
                     resolve(ret);
                 } else {
@@ -600,7 +598,7 @@ async function ensureScript(param?: string | vscode.TextDocument): Promise<sdsAc
                 }
 
             } else { // vscode.TextDocument
-                let ret: sdsAccess.script = {
+                let ret: nodeDoc.script = {
                     name: path.basename(param.fileName, '.js'),
                     sourceCode: param.getText()
                 };
@@ -618,7 +616,7 @@ async function ensureScript(param?: string | vscode.TextDocument): Promise<sdsAc
                 ignoreFocusOut: true,
             }).then((_scriptname) => {
                 if(_scriptname) {
-                    let ret = sdsAccess.getScript(_scriptname);
+                    let ret = nodeDoc.getScript(_scriptname);
                     if(typeof ret !== 'string') {
                         resolve(ret);
                     } else {
@@ -640,7 +638,7 @@ async function ensureScript(param?: string | vscode.TextDocument): Promise<sdsAc
 // additional function to get login data...
 
 
-async function createLoginData(_loginData:config.LoginData): Promise<void> {
+async function createLoginData(_loginData:nodeDoc.LoginData): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         askForLoginData(_loginData).then(() => {
             return writeLaunchJson(_loginData).then(() => {
@@ -652,7 +650,7 @@ async function createLoginData(_loginData:config.LoginData): Promise<void> {
     });
 }
 
-async function askForLoginData(_loginData:config.LoginData): Promise<void> {
+async function askForLoginData(_loginData:nodeDoc.LoginData): Promise<void> {
     console.log('askForLoginData');
     
     const SERVER: string = 'localhost';
@@ -720,7 +718,7 @@ async function askForLoginData(_loginData:config.LoginData): Promise<void> {
 
 
 
-async function writeLaunchJson(_loginData:config.LoginData): Promise<void> {
+async function writeLaunchJson(_loginData:nodeDoc.LoginData): Promise<void> {
     console.log('writeLaunchJson');
 
     return new Promise<void>((resolve, reject) => {
@@ -752,7 +750,7 @@ async function writeLaunchJson(_loginData:config.LoginData): Promise<void> {
         let rootPath = vscode.workspace.rootPath;
         if(rootPath) {
             let filename = path.join(rootPath, '.vscode', 'launch.json');
-            sdsAccess.writeFile(data, filename, true).then(() => {
+            nodeDoc.writeFile(data, filename, true).then(() => {
                 resolve();
             }).catch((reason) => {
                 reject(reason);
