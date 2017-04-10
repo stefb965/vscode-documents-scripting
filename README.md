@@ -24,6 +24,10 @@ Initial public version.
 * Extend context menu entries.
 * Improved error handling.
 
+### 1.0.6
+
+* Add compare script.
+
 ## Known Issues
 
 
