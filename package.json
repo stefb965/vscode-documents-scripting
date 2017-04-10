@@ -107,7 +107,7 @@
         },
         {
           "command": "extension.uploadAllScripts",
-          "when": "!resourceLangId",
+          "when": "explorerResourceIsFolder",
           "group": "DOCUMENTS@6"
         },
         {
@@ -117,7 +117,7 @@
         },
         {
           "command": "extension.downloadAllScripts",
-          "when": "!resourceLangId",
+          "when": "explorerResourceIsFolder",
           "group": "DOCUMENTS@8"
         }
       ],
@@ -167,6 +167,7 @@
   "dependencies": {
     "fs": "0.0.1-security",
     "net": "^1.0.2",
+    "node-documents-scripting": "git+https://github.com/otris/node-documents-scripting.git",
     "node-sds": "git+https://git@github.com/otris/node-sds.git",
     "open": "0.0.5",
     "path": "^0.12.7",
