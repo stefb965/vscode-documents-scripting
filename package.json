@@ -25,11 +25,29 @@
     "onCommand:extension.downloadScript",
     "onCommand:extension.runScript",
     "onCommand:extension.compareScript",
-    "onCommand:extension.uploadAllScripts",
+    "onCommand:extension.uploadScriptsFromFolder",
     "onCommand:extension.downloadAllScripts"
   ],
   "main": "./out/src/extension",
   "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "DOCUMENTS-scripting configuration",
+      "properties": {
+        "vscode-documents-scripting.encrypted": {
+          "type": "array",
+          "default": []
+        },
+        "vscode-documents-scripting.unencrypted": {
+          "type": "array",
+          "default": []
+        },
+        "vscode-documents-scripting.decrypted": {
+          "type": "array",
+          "default": []
+        }
+      }
+    },
     "commands": [
       {
         "command": "extension.saveConfiguration",
@@ -57,7 +75,7 @@
         "category": "DOCUMENTS"
       },
       {
-        "command": "extension.uploadAllScripts",
+        "command": "extension.uploadScriptsFromFolder",
         "title": "Upload Scripts From Folder",
         "category": "DOCUMENTS"
       },
@@ -101,12 +119,12 @@
           "group": "DOCUMENTS@4"
         },
         {
-          "command": "extension.uploadAllScripts",
+          "command": "extension.uploadScriptsFromFolder",
           "when": "resourceLangId == javascript",
           "group": "DOCUMENTS@5"
         },
         {
-          "command": "extension.uploadAllScripts",
+          "command": "extension.uploadScriptsFromFolder",
           "when": "explorerResourceIsFolder",
           "group": "DOCUMENTS@6"
         },
@@ -168,7 +186,6 @@
     "fs": "0.0.1-security",
     "net": "^1.0.2",
     "node-documents-scripting": "git+https://github.com/otris/node-documents-scripting.git",
-    "node-sds": "git+https://git@github.com/otris/node-sds.git",
     "open": "0.0.5",
     "path": "^0.12.7",
     "reduce-for-promises": "^1.2.1",

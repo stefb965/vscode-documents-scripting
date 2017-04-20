@@ -56,7 +56,6 @@ const initialConfigurations = [
 const COMPARE_FOLDER = '.compare';
 const COMPARE_FILE_PREF = 'compare_';
 
-const CREATE_LAUNCHJSON = 'Please activate or create launch.json first';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -88,10 +87,10 @@ export function activate(context: vscode.ExtensionContext) {
                 _param = param._fsPath;
             }
             ensureScript(_param).then((_script) => {
-                let params = [_script.name, _script.sourceCode];
-                return nodeDoc.sdsSession(loginData, params, nodeDoc.uploadScript).then((value) => {
-                    let scriptname = value[0];
-                    vscode.window.setStatusBarMessage('uploaded: ' + scriptname);
+                readEncryptStates([_script]);
+                return nodeDoc.sdsSession(loginData, [_script], nodeDoc.uploadScript).then((value) => {
+                    let script = value[0];
+                    vscode.window.setStatusBarMessage('uploaded: ' + script.name);
                 });
             }).catch((reason) => {
                 vscode.window.showErrorMessage('upload script failed: ' + reason);
@@ -102,47 +101,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 
-    // ----------------------------------------------------------
-    //             Upload Script On Save
-    // ----------------------------------------------------------
-    if(vscode.workspace) {
-        let disposableOnSave: vscode.Disposable;
-        disposableOnSave = vscode.workspace.onDidSaveTextDocument((textDocument) => {
-
-            const UPLOAD:  string = 'Upload script to Server?';
-            const CANCEL:  string = 'Not now';
-            const NEVER:   string = 'Never in this session';
-
-            // javascript files
-            if('.js' === path.extname(textDocument.fileName)) {
-                vscode.window.showQuickPick([UPLOAD, CANCEL, NEVER]).then((value) => {
-                    if(UPLOAD === value) {
-                        ensureScript(textDocument.fileName).then((_script) => {
-                            let params = [_script.name, _script.sourceCode];
-                            return nodeDoc.sdsSession(loginData, params, nodeDoc.uploadScript).then((value) => {
-                                let scriptname = value[0];
-                                vscode.window.setStatusBarMessage('uploaded: ' + scriptname);
-                            });
-                        }).catch((reason) => {
-                            vscode.window.showErrorMessage('upload script failed: ' + reason);
-                        });
-                    } else if(NEVER === value) {
-                        disposableOnSave.dispose();
-                    }
-                });
-            }
-
-            // typescript files
-            // const COMPILE: string = 'Compile and upload javascript to Server?';
-            // else if(textDocument.fileName.endsWith(".ts")) {
-            //     vscode.window.showQuickPick([COMPILE, CANCEL, NEVER]).then((value) => {
-            //     });
-            // }
-
-        }, this);
-        context.subscriptions.push(disposableOnSave);
-    }
-    
     
     // ----------------------------------------------------------
     //             Download Script
@@ -156,9 +114,11 @@ export function activate(context: vscode.ExtensionContext) {
 
             ensureScriptName(_param).then((scriptname) => {
                 return ensurePath(_param, true).then((_path) => {
-                    let params = [scriptname, _path[0]];
-                    return nodeDoc.sdsSession(loginData, params, nodeDoc.downloadScript).then((value) => {
-                        vscode.window.setStatusBarMessage('downloaded: ' + scriptname);
+                    let script: nodeDoc.scriptT = {name: scriptname, path: _path[0]};
+                    return nodeDoc.sdsSession(loginData, [script], nodeDoc.downloadScript).then((value) => {
+                        script = value[0];
+                        updateEncryptStates([script]);
+                        vscode.window.setStatusBarMessage('downloaded: ' + script.name);
                     });
                 });
             }).catch((reason) => {
@@ -179,12 +139,10 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             ensureScriptName(_param).then((scriptname) => {
-                let params = [scriptname];
-                return nodeDoc.sdsSession(loginData, params, nodeDoc.runScript).then((value) => {
-                    for(let i=0; i<value.length; i++) {
-                        console.log("line[" + i + "]: " + value[i]);
-                        myOutputChannel.append(value[i] + os.EOL);
-                    }
+                let script: nodeDoc.scriptT = {name: scriptname};
+                return nodeDoc.sdsSession(loginData, [script], nodeDoc.runScript).then((value) => {
+                    script = value[0];
+                    myOutputChannel.append(script.output + os.EOL);
                     myOutputChannel.show();
                 });
             }).catch((reason) => {
@@ -212,8 +170,9 @@ export function activate(context: vscode.ExtensionContext) {
                     let _scriptname = _path[1];
                     return ensureScriptName(_scriptname).then((scriptname) => {
                         let comparepath = path.join(vscode.workspace.rootPath, COMPARE_FOLDER);
-                        let params = [scriptname, comparepath, COMPARE_FILE_PREF + scriptname];
-                        return nodeDoc.sdsSession(loginData, params, nodeDoc.downloadScript).then((value) => {
+                        let script: nodeDoc.scriptT = {name: scriptname, path: comparepath, rename: COMPARE_FILE_PREF + scriptname};
+                        return nodeDoc.sdsSession(loginData, [script], nodeDoc.downloadScript).then((value) => {
+                            script = value[0];
                             compareScript(scriptfolder, scriptname);
                         });
                     });
@@ -233,17 +192,19 @@ export function activate(context: vscode.ExtensionContext) {
     //             Upload All
     // ----------------------------------------------------------
     context.subscriptions.push(
-        vscode.commands.registerCommand('extension.uploadAllScripts', (param) => {
+        vscode.commands.registerCommand('extension.uploadScriptsFromFolder', (param) => {
             let _param;
             if(param) {
                 _param = param._fsPath;
             }
 
             ensurePath(_param).then((folder) => {
-                let params = [folder[0]];
-                return nodeDoc.sdsSession(loginData, params, nodeDoc.uploadAll).then((value) => {
-                    let numscripts = value[0];
-                    vscode.window.setStatusBarMessage('uploaded ' + numscripts + ' scripts');
+                return nodeDoc.getScriptsFromFolder(folder[0]).then((_scripts) => {
+                    readEncryptStates(_scripts);
+                    return nodeDoc.sdsSession(loginData, _scripts, nodeDoc.uploadAll).then((scripts) => {
+                        let numscripts = scripts.length;
+                        vscode.window.setStatusBarMessage('uploaded ' + numscripts + ' scripts');
+                    });
                 });
             }).catch((reason) => {
                 vscode.window.showErrorMessage('upload all failed: ' + reason);
@@ -263,10 +224,15 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             ensurePath(_param, true).then((_path) => {
-                let params = [_path[0]];
-                return nodeDoc.sdsSession(loginData, params, nodeDoc.dwonloadAll).then((value) => {
-                    let numscripts = value[0];
-                    vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
+                return nodeDoc.sdsSession(loginData, [], nodeDoc.getScriptNamesFromServer).then((_scripts) => {
+                    _scripts.forEach(function(script) {
+                        script.path = _path[0];
+                    });
+                    return nodeDoc.sdsSession(loginData, _scripts, nodeDoc.dwonloadAll).then((scripts) => {
+                        let numscripts = scripts.length;
+                        updateEncryptStates(scripts);
+                        vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
+                    });
                 });
             }).catch((reason) => {
                 vscode.window.showErrorMessage('download all failed: ' + reason);
@@ -294,22 +260,63 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
 
-    // ----------------------------------------------------------
-    //             Activate
-    // ----------------------------------------------------------
-    context.subscriptions.push(
-        vscode.commands.registerCommand('extension.activate', () => {
-            if(loginData) {
-                createLoginData(loginData).then(() => {
-                    vscode.window.setStatusBarMessage('vscode-documents-scripting is active');
-                }).catch((reason) => {
-                    vscode.window.showWarningMessage(reason);
+
+
+    if(vscode.workspace) {
+
+        // ----------------------------------------------------------
+        //             Upload Script On Save
+        // ----------------------------------------------------------
+        let disposableOnSave: vscode.Disposable;
+        disposableOnSave = vscode.workspace.onDidSaveTextDocument((textDocument) => {
+
+            const UPLOAD:  string = 'Upload script to Server?';
+            const CANCEL:  string = 'Not now';
+            const NEVER:   string = 'Never in this session';
+
+            // javascript files
+            if('.js' === path.extname(textDocument.fileName)) {
+                vscode.window.showQuickPick([UPLOAD, CANCEL, NEVER]).then((value) => {
+                    if(UPLOAD === value) {
+                        ensureScript(textDocument.fileName).then((_script) => {
+                            readEncryptStates([_script]);
+                            return nodeDoc.sdsSession(loginData, [_script], nodeDoc.uploadScript).then((value) => {
+                                let script = value[0];
+                                vscode.window.setStatusBarMessage('uploaded: ' + script.name);
+                            });
+                        }).catch((reason) => {
+                            vscode.window.showErrorMessage('upload script failed: ' + reason);
+                        });
+                    } else if(NEVER === value) {
+                        disposableOnSave.dispose();
+                    }
                 });
-            } else {
-                vscode.window.showErrorMessage('unexpected error: login data object missing');
             }
-        })
-    );
+            // typescript files
+            // const COMPILE: string = 'Compile and upload javascript to Server?';
+            // else if(textDocument.fileName.endsWith(".ts")) {
+            //     vscode.window.showQuickPick([COMPILE, CANCEL, NEVER]).then((value) => {
+            //     });
+            // }
+        }, this);
+        context.subscriptions.push(disposableOnSave);
+
+        // ----------------------------------------------------------
+        //             Update Encrypt States On Delete File
+        // ----------------------------------------------------------
+        let disposableOnDelete: vscode.Disposable;
+        let watcher = vscode.workspace.createFileSystemWatcher("**/*.js", true, true, false);
+        watcher.onDidDelete((file) => {
+            if(file && '.js' == path.extname(file.fsPath)) {
+                let scriptname = path.basename(file.fsPath, '.js');
+                let script: nodeDoc.scriptT = {name: scriptname}
+                updateEncryptStates([script]);
+            }
+        });
+    }
+    
+
+
 
 
 
@@ -420,6 +427,137 @@ export function deactivate() {
 }
 
 
+/**
+ * Read the encrypt states of the given scripts from settings.json.
+ * @param scripts the scripts of which we want to read the encrypt state
+ */
+function readEncryptStates(scripts: nodeDoc.scriptT[]) {
+    if(vscode.workspace) {
+
+        // get extension-part of settings.json
+        let conf = vscode.workspace.getConfiguration('vscode-documents-scripting');
+
+        // get the three encrypted lists
+        let _encrypted = conf.get('encrypted');
+        let _unencrypted = conf.get('unencrypted');
+        let _decrypted = conf.get('decrypted');
+        if(_encrypted instanceof Array && _unencrypted instanceof Array && _decrypted instanceof Array) {
+            let encrypted: string[] = _encrypted;
+            let unencrypted: string[] = _unencrypted;
+            let decrypted: string[] = _decrypted;
+
+            scripts.forEach(function(script) {
+
+                // check if one of the lists contains the script
+                // and get the state
+                if(0 <= encrypted.indexOf(script.name)) {
+                    script.encryptState = nodeDoc.encrypted.true;
+                }
+                if (0 <= decrypted.indexOf(script.name)) {
+                    script.encryptState = nodeDoc.encrypted.decrypted;
+                }
+                if(0 <= unencrypted.indexOf(script.name)) {
+                    script.encryptState = nodeDoc.encrypted.false;
+                }
+            });
+        }
+    }
+}
+
+/**
+ * Store the encrypt states of the given scripts in settings.json.
+ * @param scripts The scripts of which we want to update the encrypt states.
+ */
+function updateEncryptStates(scripts: nodeDoc.scriptT[]) {
+    if(vscode.workspace) {
+
+        // get extension-part of settings.json
+        let conf = vscode.workspace.getConfiguration('vscode-documents-scripting');
+
+        // get the three encrypted lists
+        let _encrypted = conf.get('encrypted');
+        let _unencrypted = conf.get('unencrypted');
+        let _decrypted = conf.get('decrypted');
+        if(_encrypted instanceof Array && _decrypted instanceof Array && _unencrypted instanceof Array) {
+            let encrypted: string[] = _encrypted;
+            let unencrypted: string[] = _unencrypted;
+            let decrypted: string[] = _decrypted;
+
+
+            scripts.forEach(function(script) {
+
+                // script encrypted but not in encrypted list?
+                if(nodeDoc.encrypted.true === script.encryptState && 0 > encrypted.indexOf(script.name)) {
+
+                    // insert script into encrypted list
+                    encrypted.push(script.name);
+
+                    // remove script from decrypted and unencrypted lists
+                    let idx;
+                    idx = decrypted.indexOf(script.name);
+                    if(0 <= idx) {
+                        decrypted.splice(idx, 1);
+                    }
+                    idx = unencrypted.indexOf(script.name);
+                    if(0 <= idx) {
+                        unencrypted.splice(idx, 1);
+                    }
+
+                // scrypt decrypted but not in decrypted list?
+            } else if(nodeDoc.encrypted.decrypted === script.encryptState && 0 > decrypted.indexOf(script.name)) {
+                
+                    // insert script into decrypted list
+                    decrypted.push(script.name);
+
+                    // remove script form encrypted and unencrypted list
+                    let idx;
+                    idx = encrypted.indexOf(script.name);
+                    if(0 <= idx) {
+                        encrypted.splice(idx, 1);
+                    }
+                    idx = unencrypted.indexOf(script.name);
+                    if(0 <= idx) {
+                        unencrypted.splice(idx, 1);
+                    }
+
+                // script unencrypted? default state
+            } else if(nodeDoc.encrypted.false === script.encryptState) {
+                
+                    // doesn't have to be inserted, it's the default state
+
+                    // just remove script from encrypted and decrypted list
+                    let idx;
+                    idx = encrypted.indexOf(script.name);
+                    if(0 <= idx) {
+                        encrypted.splice(idx, 1);
+                    }
+                    idx = decrypted.indexOf(script.name);
+                    if(0 <= idx) {
+                        decrypted.splice(idx, 1);
+                    }
+                }
+            });
+
+            // update lists in settings.json
+            conf.update('encrypted', encrypted).then((value) => {
+                if(value) {
+                    console.log('update encypted in settings.json: ' + value);
+                }
+            });
+            conf.update('unencrypted', unencrypted).then((value) => {
+                if(value) {
+                    console.log('update unencrypted in settings.json: ' + value);
+                }
+            });
+            conf.update('decrypted', decrypted).then((value) => {
+                if(value) {
+                    console.log('update decrypted in settings.json: ' + value);
+                }
+            });
+        }
+    }
+}
+
 
 function compareScript(_path, scriptname) {
     if(!_path || !scriptname) {
@@ -438,7 +576,6 @@ function compareScript(_path, scriptname) {
         });
     }
 }
-
 
 
 
@@ -584,9 +721,9 @@ async function ensureScriptName(paramscript?: string): Promise<string> {
 
 
 
-async function ensureScript(param?: string | vscode.TextDocument): Promise<nodeDoc.script> {
+async function ensureScript(param?: string | vscode.TextDocument): Promise<nodeDoc.scriptT> {
     console.log('ensureScript');
-    return new Promise<nodeDoc.script>((resolve, reject) => {
+    return new Promise<nodeDoc.scriptT>((resolve, reject) => {
 
         if(param) {
             if(typeof param === 'string') {
@@ -597,8 +734,8 @@ async function ensureScript(param?: string | vscode.TextDocument): Promise<nodeD
                     reject(ret);
                 }
 
-            } else { // vscode.TextDocument
-                let ret: nodeDoc.script = {
+            } else { // param === vscode.TextDocument
+                let ret: nodeDoc.scriptT = {
                     name: path.basename(param.fileName, '.js'),
                     sourceCode: param.getText()
                 };
@@ -641,11 +778,16 @@ async function ensureScript(param?: string | vscode.TextDocument): Promise<nodeD
 async function createLoginData(_loginData:nodeDoc.LoginData): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         askForLoginData(_loginData).then(() => {
-            return writeLaunchJson(_loginData).then(() => {
+            createLaunchJson(_loginData).then(() => {
+                resolve();
+            }).catch((reason) => {
+                // couldn't save login data,
+                // doesn't matter, just leave a warning and continue anyway
+                vscode.window.showWarningMessage('did not save login data: ' + reason);
                 resolve();
             });
         }).catch((reason) => {
-            reject('did not save login data: ' + reason);
+            reject(reason);
         });
     });
 }
@@ -660,7 +802,8 @@ async function askForLoginData(_loginData:nodeDoc.LoginData): Promise<void> {
     const PASSWORD = '';
 
     return new Promise<void>((resolve, reject) => {
-        // showQuickPick() and showInputBox() return thenable(value) objects,
+
+        // showInputBox() returns a thenable(value) object,
         // that is, these objects always have a then(value) function,
         // value can't be empty iff it's predefined in options
         vscode.window.showInputBox({
@@ -709,8 +852,7 @@ async function askForLoginData(_loginData:nodeDoc.LoginData): Promise<void> {
                 _loginData.password = password;
                 resolve();
             } else {
-                reject();
-                vscode.window.showErrorMessage('Input login data cancelled: command cannot be executed');
+                reject('input login data cancelled');
             }
         });
     });
@@ -718,43 +860,62 @@ async function askForLoginData(_loginData:nodeDoc.LoginData): Promise<void> {
 
 
 
-async function writeLaunchJson(_loginData:nodeDoc.LoginData): Promise<void> {
-    console.log('writeLaunchJson');
+
+
+async function createLaunchJson(_loginData:nodeDoc.LoginData): Promise<void> {
+    console.log('createLaunchJson');
 
     return new Promise<void>((resolve, reject) => {
-        initialConfigurations.forEach((config: any) => {
-            if (config.request == 'launch') {
-                config.host = _loginData.server;
-                config.applicationPort = _loginData.port;
-                config.principal = _loginData.principal;
-                config.username = _loginData.username;
-                config.password = _loginData.password;
-            }
-        });
-
-        const configurations = JSON.stringify(initialConfigurations, null, '\t')
-            .split('\n').map(line => '\t' + line).join('\n').trim();
-
-        const data = [
-            '{',
-            '\t// Use IntelliSense to learn about possible configuration attributes.',
-            '\t// Hover to view descriptions of existing attributes.',
-            '\t// For more information, visit',
-            '\t// https://github.com/otris/vscode-janus-debug/wiki/Launching-the-Debugger',
-            '\t"version": "0.2.0",',
-            '\t"configurations": ' + configurations,
-            '}',
-        ].join('\n');
-
 
         let rootPath = vscode.workspace.rootPath;
         if(rootPath) {
             let filename = path.join(rootPath, '.vscode', 'launch.json');
-            nodeDoc.writeFile(data, filename, true).then(() => {
-                resolve();
-            }).catch((reason) => {
-                reject(reason);
-            });
+            fs.stat(filename, function (err, stats) {
+                if(err) {
+                    if('ENOENT' === err.code) {
+                        // launch.json doesn't exist, create the default
+                        // launch.json for janus-debugger
+
+                        initialConfigurations.forEach((config: any) => {
+                            if (config.request == 'launch') {
+                                config.host = _loginData.server;
+                                config.applicationPort = _loginData.port;
+                                config.principal = _loginData.principal;
+                                config.username = _loginData.username;
+                                config.password = _loginData.password;
+                            }
+                        });
+
+                        const configurations = JSON.stringify(initialConfigurations, null, '\t')
+                            .split('\n').map(line => '\t' + line).join('\n').trim();
+
+                        const data = [
+                            '{',
+                            '\t// Use IntelliSense to learn about possible configuration attributes.',
+                            '\t// Hover to view descriptions of existing attributes.',
+                            '\t// For more information, visit',
+                            '\t// https://github.com/otris/vscode-janus-debug/wiki/Launching-the-Debugger',
+                            '\t"version": "0.2.0",',
+                            '\t"configurations": ' + configurations,
+                            '}',
+                        ].join('\n');
+
+
+                        nodeDoc.writeFile(data, filename, true).then(() => {
+                            resolve();
+                        }).catch((reason) => {
+                            reject(reason);
+                        });
+                    } else {
+                        reject(err);
+                    }
+                } else {
+                    // launch.jsaon exists
+                    // I don't dare to change it
+                    reject('cannot overwrite existing launch.json');
+                }
+            });            
+
         } else {
             reject('folder must be open to save login data');
         }
