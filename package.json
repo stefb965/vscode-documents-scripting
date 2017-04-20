@@ -186,6 +186,7 @@
     "fs": "0.0.1-security",
     "net": "^1.0.2",
     "node-documents-scripting": "git+https://github.com/otris/node-documents-scripting.git",
+    "node-sds": "git+https://git@github.com/otris/node-sds.git",
     "open": "0.0.5",
     "path": "^0.12.7",
     "reduce-for-promises": "^1.2.1",
