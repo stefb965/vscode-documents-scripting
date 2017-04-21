@@ -169,17 +169,19 @@ export function activate(context: vscode.ExtensionContext) {
                 _param = param._fsPath;
             }
 
-            // todo should be possible without workspace
+            // todo: compare should be possible without workspace
             if(vscode.workspace) {
                 ensurePath(_param, false, true).then((_path) => {
                     let scriptfolder = _path[0];
                     let _scriptname = _path[1];
                     return ensureScriptName(_scriptname).then((scriptname) => {
                         let comparepath = path.join(vscode.workspace.rootPath, COMPARE_FOLDER);
-                        let script: nodeDoc.scriptT = {name: scriptname, path: comparepath, rename: COMPARE_FILE_PREF + scriptname};
-                        return nodeDoc.sdsSession(loginData, [script], nodeDoc.downloadScript).then((value) => {
-                            script = value[0];
-                            compareScript(scriptfolder, scriptname);
+                        return createFolder(comparepath, true).then(() => {
+                            let script: nodeDoc.scriptT = {name: scriptname, path: comparepath, rename: COMPARE_FILE_PREF + scriptname};
+                            return nodeDoc.sdsSession(loginData, [script], nodeDoc.downloadScript).then((value) => {
+                                script = value[0];
+                                compareScript(scriptfolder, scriptname);
+                            });
                         });
                     });
                 }).catch((reason) => {
@@ -597,9 +599,43 @@ function compareScript(_path, scriptname) {
 
 
 
+async function createFolder(_path: string, hidden = false): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+        fs.stat(_path, function (err, stats) {
+            if(err) {
+                if('ENOENT' === err.code) {
+                    fs.mkdir(_path, function(error) {
+                        if(error) {
+                            reject(error);
+                        } else {
+                            if(hidden) {
+                                winattr.set(_path, {hidden: true}, function(err) {
+                                    if(err) {
+                                        reject(err);
+                                    } else {
+                                        resolve();
+                                    }
+                                });
+                            } else {
+                                resolve();
+                            }
+                        }
+                    });
+                } else {
+                    reject(err);
+                }
+            } else {
+                if(stats.isDirectory()) {
+                    resolve();
+                } else {
+                    reject(`${_path} already exists but is not a directory`);
+                }
+            }
+        });
+    });
+}
 
-
-function getFolder(fileOrFolder: string, allowSubFolder = false): Promise<string[]> {
+async function getFolder(fileOrFolder: string, allowSubFolder = false): Promise<string[]> {
     return new Promise<string[]>((resolve, reject) => {
         fs.stat(fileOrFolder, function (err, stats) {
             

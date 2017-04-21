@@ -193,6 +193,7 @@
     "strip-json-comments": "^2.0.1",
     "typescript-compiler": "^1.4.1-2",
     "url-exists": "^1.0.3",
-    "vsce": "^1.18.0"
+    "vsce": "^1.18.0",
+    "winattr": "^2.0.0"
   }
 }
