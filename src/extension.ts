@@ -7,10 +7,20 @@ import * as vscode from 'vscode';
 import * as reduce from 'reduce-for-promises';
 import * as tsc from 'typescript-compiler';
 import * as nodeDoc from 'node-documents-scripting';
+import * as winattr from 'winattr';
 
 
 const open = require('open');
 const urlExists = require('url-exists');
+
+
+const REQUIRED_DOCUMENTS_VERSION = '8035';
+
+// like eclipse plugin
+const COMPARE_FOLDER = '.compare';
+const COMPARE_FILE_PREF = 'compare_';
+
+
 
 
 const initialConfigurations = [
@@ -51,10 +61,6 @@ const initialConfigurations = [
 
 
 
-
-// like eclipse plugin
-const COMPARE_FOLDER = '.compare';
-const COMPARE_FILE_PREF = 'compare_';
 
 
 
@@ -416,6 +422,17 @@ export function activate(context: vscode.ExtensionContext) {
             });
         })
     );
+
+
+
+    nodeDoc.sdsSession(loginData, [], nodeDoc.getDocumentsVersion).then((value) => {
+        let script = value[0];
+        if(Number(script.documentsVersion) < Number(REQUIRED_DOCUMENTS_VERSION)) {
+            vscode.window.showInformationMessage(`It is required to use DOCUMENTS Build ${REQUIRED_DOCUMENTS_VERSION} you are using ${script.documentsVersion}`);
+        }
+    });
+
+
 
     vscode.window.setStatusBarMessage('vscode-documents-scripting is active');
 }
