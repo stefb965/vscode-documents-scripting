@@ -7,9 +7,13 @@
 3. Upload scripts from folder (folder)
 4. Upload script (script, folder)
 5. Run script (scriptname)
+6. Login (launch.json)
 
 * script
-    * positive: valid path
+    * positive:
+        * valid path
+        * encrypted, decrypted (check settings.json)
+        * with bom, without bom
     * negative: invalid path
 * scriptname
     * positive: scriptname existing on server
@@ -26,6 +30,7 @@
 ## Events
 
 * Save script
+* Delete Script that is listed in settings.json as encrypted or decrypted
 
 ## Keys
 
