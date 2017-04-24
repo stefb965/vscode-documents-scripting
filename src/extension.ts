@@ -318,9 +318,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 
-
-
-
     // todo...
     // ----------------------------------------------------------
     //             View Documentation
@@ -328,94 +325,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.viewDocumentation', (file) => {
             // file is not used, use active editor...
-
-            // todo create function viewDocumentation() ...
-
-            let portalscriptdocu = 'http://doku.otris.de/api/portalscript/';
-            urlExists(portalscriptdocu, function(err, exists) {
-                if(!exists) {
-                    vscode.window.showInformationMessage('Documentation is not available!');
-                } else {
-
-                    // current editor
-                    const editor = vscode.window.activeTextEditor;
-                    if(!editor || !vscode.workspace.rootPath) {
-                        return;
-                    }
-
-                    // skip import lines
-                    var cnt = 0;
-                    var currline:string = editor.document.lineAt(cnt).text;
-                    while(currline.startsWith('import')) {
-                        cnt ++;
-                        currline = editor.document.lineAt(cnt).text;
-                    }
-
-                    // first line after import should look like "export class Context {"
-                    var _words = currline.split(' ');
-                    if(_words.length != 4 || _words[0] !== 'export' || _words[1] !== 'class' || _words[3] != '{') {
-                        return;
-                    }
-
-
-                    var classname = _words[2];
-
-                    // the Position object gives you the line and character where the cursor is
-                    const pos = editor.selection.active;
-                    if(!pos) {
-                        return;
-                    }
-                    const line = editor.document.lineAt(pos.line).text;
-                    const words = line.split(' ');
-                    var member = '';
-
-                    if(words[0].trim() === 'public') {
-                        member = words[1].trim();
-                        var brace = member.indexOf('(');
-                        if(brace >= 0) {
-                            member = member.substr(0, brace);
-                        }
-                    }
-
-                    const jsFileName = 'class' + classname + '.js';
-                    const htmlFileName = 'class' + classname + '.html';
-                    const jsFilePath = path.join(vscode.workspace.rootPath, 'mapping', jsFileName);
-
-                    fs.readFile(jsFilePath, (err, data) => {
-
-                        var browser = 'firefox';
-                        if(err || !data) {
-                            var page = portalscriptdocu + htmlFileName;
-                            open(page, browser);
-
-                        } else {
-                            // \r was missing in the generated files
-                            var lines = data.toString().split("\n");
-
-                            for(var i=2; i<lines.length-1; i++) {
-                                var entries = lines[i].split(',');
-                                if(entries.length < 2) {
-                                    continue;
-                                }
-                                // entries[0] looks like: "     [ "clientId""
-                                var entry = entries[0].replace('[','').replace(/"/g,'').trim();
-
-                                if(entry === member) {
-                                    // entries[1] looks like: "  "classContext.html#a6d644a063ace489a2893165bb3856579""
-                                    var link = entries[1].replace(/"/g,'').trim();
-                                    var page = portalscriptdocu + link;
-                                    open(page, browser);
-                                    break;
-                                }
-                            }
-                            if(i === lines.length-1) {
-                                var page = portalscriptdocu + htmlFileName;
-                                open(page, browser);
-                            }
-                        }
-                    });
-                }
-            });
+            viewDocumentation();
         })
     );
 
@@ -443,6 +353,14 @@ export function deactivate() {
 }
 
 
+
+/**
+ * Read in settings.json if the script has to be uploaded always or never.
+ * If it's not set, ask user, if the script should be uploaded and if
+ * the answer should be saved. If so, save it to settings.json.
+ * 
+ * @param param script-name or -path
+ */
 async function ensureUploadOnSave(param: string): Promise<boolean>{
     return new Promise<boolean>((resolve, reject) => {
         let force: string[];
@@ -472,10 +390,23 @@ async function ensureUploadOnSave(param: string): Promise<boolean>{
         } else if(0 <= force.indexOf(scriptname)) {
             resolve(true);
         } else {
-            vscode.window.showQuickPick(['Yes', 'No'], {placeHolder: `Upload script '${scriptname}'?`}).then((value) => {
-                if('Yes' === value) {
+            const QUESTION: string = `Upload script ${scriptname}?`;
+            const YES: string = 'Yes';
+            const NO: string = 'No';
+            const ALWAYS: string = 'Yes always (save to settings.json)';
+            const NEVER: string = 'No never (save to settings.json)';
+            vscode.window.showQuickPick([YES, NO, ALWAYS, NEVER], {placeHolder: QUESTION}).then((answer) => {
+                if(YES === answer) {
                     resolve(true);
-                } else {
+                } else if(NO === answer) {
+                    resolve(false);
+                } else if(ALWAYS === answer){
+                    force.push(scriptname);
+                    conf.update('forceUploadOnSave', force);
+                    resolve(true);
+                } else if(NEVER === answer) {
+                    block.push(scriptname);
+                    conf.update('blockUploadOnSave', block);
                     resolve(false);
                 }
             });
@@ -1012,7 +943,93 @@ async function createLaunchJson(_loginData:nodeDoc.LoginData): Promise<void> {
 
 
 
+function viewDocumentation() {
+    let portalscriptdocu = 'http://doku.otris.de/api/portalscript/';
+    urlExists(portalscriptdocu, function(err, exists) {
+        if(!exists) {
+            vscode.window.showInformationMessage('Documentation is not available!');
+        } else {
 
+            // current editor
+            const editor = vscode.window.activeTextEditor;
+            if(!editor || !vscode.workspace.rootPath) {
+                return;
+            }
+
+            // skip import lines
+            var cnt = 0;
+            var currline:string = editor.document.lineAt(cnt).text;
+            while(currline.startsWith('import')) {
+                cnt ++;
+                currline = editor.document.lineAt(cnt).text;
+            }
+
+            // first line after import should look like "export class Context {"
+            var _words = currline.split(' ');
+            if(_words.length != 4 || _words[0] !== 'export' || _words[1] !== 'class' || _words[3] != '{') {
+                return;
+            }
+
+
+            var classname = _words[2];
+
+            // the Position object gives you the line and character where the cursor is
+            const pos = editor.selection.active;
+            if(!pos) {
+                return;
+            }
+            const line = editor.document.lineAt(pos.line).text;
+            const words = line.split(' ');
+            var member = '';
+
+            if(words[0].trim() === 'public') {
+                member = words[1].trim();
+                var brace = member.indexOf('(');
+                if(brace >= 0) {
+                    member = member.substr(0, brace);
+                }
+            }
+
+            const jsFileName = 'class' + classname + '.js';
+            const htmlFileName = 'class' + classname + '.html';
+            const jsFilePath = path.join(vscode.workspace.rootPath, 'mapping', jsFileName);
+
+            fs.readFile(jsFilePath, (err, data) => {
+
+                var browser = 'firefox';
+                if(err || !data) {
+                    var page = portalscriptdocu + htmlFileName;
+                    open(page, browser);
+
+                } else {
+                    // \r was missing in the generated files
+                    var lines = data.toString().split("\n");
+
+                    for(var i=2; i<lines.length-1; i++) {
+                        var entries = lines[i].split(',');
+                        if(entries.length < 2) {
+                            continue;
+                        }
+                        // entries[0] looks like: "     [ "clientId""
+                        var entry = entries[0].replace('[','').replace(/"/g,'').trim();
+
+                        if(entry === member) {
+                            // entries[1] looks like: "  "classContext.html#a6d644a063ace489a2893165bb3856579""
+                            var link = entries[1].replace(/"/g,'').trim();
+                            var page = portalscriptdocu + link;
+                            open(page, browser);
+                            break;
+                        }
+                    }
+                    if(i === lines.length-1) {
+                        var page = portalscriptdocu + htmlFileName;
+                        open(page, browser);
+                    }
+                }
+            });
+        }
+    });
+}
 
 
 

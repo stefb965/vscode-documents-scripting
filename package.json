@@ -42,11 +42,13 @@
         },
         "vscode-documents-scripting.forceUploadOnSave": {
           "type": "array",
-          "default": []
+          "default": [],
+          "description": "Always upload scripts in this list after save automatically."
         },
         "vscode-documents-scripting.blockUploadOnSave": {
           "type": "array",
-          "default": []
+          "default": [],
+          "description": "Never automatically upload scripts in this list and never ask to."
         }
       }
     },
