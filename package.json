@@ -31,18 +31,20 @@
   "main": "./out/src/extension",
   "contributes": {
     "configuration": {
-      "type": "object",
-      "title": "DOCUMENTS-scripting configuration",
       "properties": {
         "vscode-documents-scripting.encrypted": {
           "type": "array",
           "default": []
         },
-        "vscode-documents-scripting.unencrypted": {
+        "vscode-documents-scripting.decrypted": {
           "type": "array",
           "default": []
         },
-        "vscode-documents-scripting.decrypted": {
+        "vscode-documents-scripting.forceUploadOnSave": {
+          "type": "array",
+          "default": []
+        },
+        "vscode-documents-scripting.blockUploadOnSave": {
           "type": "array",
           "default": []
         }

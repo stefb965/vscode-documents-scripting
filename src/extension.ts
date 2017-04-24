@@ -14,7 +14,7 @@ const open = require('open');
 const urlExists = require('url-exists');
 
 
-const REQUIRED_DOCUMENTS_VERSION = '8035';
+const REQUIRED_DOCUMENTS_VERSION = '8034';
 
 // like eclipse plugin
 const COMPARE_FOLDER = '.compare';
@@ -107,7 +107,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 
-    
+
     // ----------------------------------------------------------
     //             Download Script
     // ----------------------------------------------------------
@@ -269,6 +269,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 
+    
+    // events...
 
     if(vscode.workspace) {
 
@@ -278,34 +280,24 @@ export function activate(context: vscode.ExtensionContext) {
         let disposableOnSave: vscode.Disposable;
         disposableOnSave = vscode.workspace.onDidSaveTextDocument((textDocument) => {
 
-            const UPLOAD:  string = 'Upload script to Server?';
-            const CANCEL:  string = 'Not now';
-            const NEVER:   string = 'Never in this session';
-
             // javascript files
+            // todo typescript files
             if('.js' === path.extname(textDocument.fileName)) {
-                vscode.window.showQuickPick([UPLOAD, CANCEL, NEVER]).then((value) => {
-                    if(UPLOAD === value) {
-                        ensureScript(textDocument.fileName).then((_script) => {
+
+                ensureUploadOnSave(textDocument.fileName).then((value) => {
+                    if(value) {
+                        return ensureScript(textDocument.fileName).then((_script) => {
                             readEncryptStates([_script]);
                             return nodeDoc.sdsSession(loginData, [_script], nodeDoc.uploadScript).then((value) => {
                                 let script = value[0];
                                 vscode.window.setStatusBarMessage('uploaded: ' + script.name);
                             });
-                        }).catch((reason) => {
-                            vscode.window.showErrorMessage('upload script failed: ' + reason);
                         });
-                    } else if(NEVER === value) {
-                        disposableOnSave.dispose();
                     }
+                }).catch((reason) => {
+                    vscode.window.showErrorMessage('upload script failed: ' + reason);
                 });
             }
-            // typescript files
-            // const COMPILE: string = 'Compile and upload javascript to Server?';
-            // else if(textDocument.fileName.endsWith(".ts")) {
-            //     vscode.window.showQuickPick([COMPILE, CANCEL, NEVER]).then((value) => {
-            //     });
-            // }
         }, this);
         context.subscriptions.push(disposableOnSave);
 
@@ -330,7 +322,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 
     // todo...
-    // view documentation
+    // ----------------------------------------------------------
+    //             View Documentation
+    // ----------------------------------------------------------
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.viewDocumentation', (file) => {
             // file is not used, use active editor...
@@ -427,10 +421,13 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 
+    // ----------------------------------------------------------
+    //             Check Documents Version
+    // ----------------------------------------------------------
     nodeDoc.sdsSession(loginData, [], nodeDoc.getDocumentsVersion).then((value) => {
-        let script = value[0];
-        if(Number(script.documentsVersion) < Number(REQUIRED_DOCUMENTS_VERSION)) {
-            vscode.window.showInformationMessage(`It is required to use DOCUMENTS Build ${REQUIRED_DOCUMENTS_VERSION} you are using ${script.documentsVersion}`);
+        let doc: nodeDoc.documentsT = value[0];
+        if(Number(doc.version) < Number(REQUIRED_DOCUMENTS_VERSION)) {
+            vscode.window.showInformationMessage(`It is recommended to use DOCUMENTS Build ${REQUIRED_DOCUMENTS_VERSION} you are using ${doc.version}`);
         }
     });
 
@@ -446,41 +443,87 @@ export function deactivate() {
 }
 
 
+async function ensureUploadOnSave(param: string): Promise<boolean>{
+    return new Promise<boolean>((resolve, reject) => {
+        let force: string[];
+        let block: string[];
+
+        if(!vscode.workspace || !param || 0 === param.length) {
+            return;
+        }
+
+        let scriptname = path.basename(param, '.js');
+
+        // get extension-part of settings.json
+        let conf = vscode.workspace.getConfiguration('vscode-documents-scripting');
+
+        // get the encrypted/decrypted lists
+        let _force = conf.get('forceUploadOnSave');
+        let _block = conf.get('blockUploadOnSave');
+        if(_force instanceof Array && _block instanceof Array) {
+            force = _force;
+            block = _block;
+        } else {
+            vscode.window.showWarningMessage('Cannot read encrypted states from settings.json');
+            reject();
+        }
+        if(0 <= block.indexOf(scriptname)) {
+            resolve(false);
+        } else if(0 <= force.indexOf(scriptname)) {
+            resolve(true);
+        } else {
+            vscode.window.showQuickPick(['Yes', 'No'], {placeHolder: `Upload script '${scriptname}'?`}).then((value) => {
+                if('Yes' === value) {
+                    resolve(true);
+                } else {
+                    resolve(false);
+                }
+            });
+        }
+    });
+}
+
+
 /**
  * Read the encrypt states of the given scripts from settings.json.
  * @param scripts the scripts of which we want to read the encrypt state
  */
 function readEncryptStates(scripts: nodeDoc.scriptT[]) {
-    if(vscode.workspace) {
+    let encrypted: string[];
+    let decrypted: string[];
 
-        // get extension-part of settings.json
-        let conf = vscode.workspace.getConfiguration('vscode-documents-scripting');
-
-        // get the three encrypted lists
-        let _encrypted = conf.get('encrypted');
-        let _unencrypted = conf.get('unencrypted');
-        let _decrypted = conf.get('decrypted');
-        if(_encrypted instanceof Array && _unencrypted instanceof Array && _decrypted instanceof Array) {
-            let encrypted: string[] = _encrypted;
-            let unencrypted: string[] = _unencrypted;
-            let decrypted: string[] = _decrypted;
-
-            scripts.forEach(function(script) {
-
-                // check if one of the lists contains the script
-                // and get the state
-                if(0 <= encrypted.indexOf(script.name)) {
-                    script.encryptState = nodeDoc.encrypted.true;
-                }
-                if (0 <= decrypted.indexOf(script.name)) {
-                    script.encryptState = nodeDoc.encrypted.decrypted;
-                }
-                if(0 <= unencrypted.indexOf(script.name)) {
-                    script.encryptState = nodeDoc.encrypted.false;
-                }
-            });
-        }
+    if(!vscode.workspace || !scripts || 0 === scripts.length) {
+        return;
     }
+
+    // get extension-part of settings.json
+    let conf = vscode.workspace.getConfiguration('vscode-documents-scripting');
+
+    // get the encrypted/decrypted lists
+    let _encrypted = conf.get('encrypted');
+    let _decrypted = conf.get('decrypted');
+    if(_encrypted instanceof Array && _decrypted instanceof Array) {
+        encrypted = _encrypted;
+        decrypted = _decrypted;
+    } else {
+        vscode.window.showWarningMessage('Cannot read encrypted states from settings.json');
+        return;
+    }
+
+    scripts.forEach(function(script) {
+
+        // default
+        script.encrypted = nodeDoc.encrypted.false;
+
+        // check if script is in one of the lists
+        // and read the state
+        if(0 <= encrypted.indexOf(script.name)) {
+            script.encrypted = nodeDoc.encrypted.true;
+        }
+        if (0 <= decrypted.indexOf(script.name)) {
+            script.encrypted = nodeDoc.encrypted.decrypted;
+        }
+    });
 }
 
 /**
@@ -488,93 +531,75 @@ function readEncryptStates(scripts: nodeDoc.scriptT[]) {
  * @param scripts The scripts of which we want to update the encrypt states.
  */
 function updateEncryptStates(scripts: nodeDoc.scriptT[]) {
-    if(vscode.workspace) {
-
-        // get extension-part of settings.json
-        let conf = vscode.workspace.getConfiguration('vscode-documents-scripting');
-
-        // get the three encrypted lists
-        let _encrypted = conf.get('encrypted');
-        let _unencrypted = conf.get('unencrypted');
-        let _decrypted = conf.get('decrypted');
-        if(_encrypted instanceof Array && _decrypted instanceof Array && _unencrypted instanceof Array) {
-            let encrypted: string[] = _encrypted;
-            let unencrypted: string[] = _unencrypted;
-            let decrypted: string[] = _decrypted;
-
-
-            scripts.forEach(function(script) {
-
-                // script encrypted but not in encrypted list?
-                if(nodeDoc.encrypted.true === script.encryptState && 0 > encrypted.indexOf(script.name)) {
-
-                    // insert script into encrypted list
-                    encrypted.push(script.name);
-
-                    // remove script from decrypted and unencrypted lists
-                    let idx;
-                    idx = decrypted.indexOf(script.name);
-                    if(0 <= idx) {
-                        decrypted.splice(idx, 1);
-                    }
-                    idx = unencrypted.indexOf(script.name);
-                    if(0 <= idx) {
-                        unencrypted.splice(idx, 1);
-                    }
-
-                // scrypt decrypted but not in decrypted list?
-            } else if(nodeDoc.encrypted.decrypted === script.encryptState && 0 > decrypted.indexOf(script.name)) {
-                
-                    // insert script into decrypted list
-                    decrypted.push(script.name);
-
-                    // remove script form encrypted and unencrypted list
-                    let idx;
-                    idx = encrypted.indexOf(script.name);
-                    if(0 <= idx) {
-                        encrypted.splice(idx, 1);
-                    }
-                    idx = unencrypted.indexOf(script.name);
-                    if(0 <= idx) {
-                        unencrypted.splice(idx, 1);
-                    }
-
-                // script unencrypted? default state
-            } else if(nodeDoc.encrypted.false === script.encryptState) {
-                
-                    // doesn't have to be inserted, it's the default state
-
-                    // just remove script from encrypted and decrypted list
-                    let idx;
-                    idx = encrypted.indexOf(script.name);
-                    if(0 <= idx) {
-                        encrypted.splice(idx, 1);
-                    }
-                    idx = decrypted.indexOf(script.name);
-                    if(0 <= idx) {
-                        decrypted.splice(idx, 1);
-                    }
-                }
-            });
-
-            // update lists in settings.json
-            conf.update('encrypted', encrypted).then((value) => {
-                if(value) {
-                    console.log('update encypted in settings.json: ' + value);
-                }
-            });
-            conf.update('unencrypted', unencrypted).then((value) => {
-                if(value) {
-                    console.log('update unencrypted in settings.json: ' + value);
-                }
-            });
-            conf.update('decrypted', decrypted).then((value) => {
-                if(value) {
-                    console.log('update decrypted in settings.json: ' + value);
-                }
-            });
-        }
+    if(!vscode.workspace || !scripts || 0 === scripts.length) {
+        return;
     }
+
+    // get extension-part of settings.json
+    let conf = vscode.workspace.getConfiguration('vscode-documents-scripting');
+
+    // get the encrypted/decrypted lists
+    let _encrypted = conf.get('encrypted');
+    let _decrypted = conf.get('decrypted');
+    let encrypted: string[];
+    let decrypted: string[];
+    if(_encrypted instanceof Array && _decrypted instanceof Array) {
+        encrypted = _encrypted;
+        decrypted = _decrypted;
+    } else {
+        vscode.window.showWarningMessage('Cannot write to settings.json');
+        return;
+    }
+
+
+    scripts.forEach(function(script) {
+        let eidx = encrypted.indexOf(script.name);
+        let didx = decrypted.indexOf(script.name);
+
+        // script encrypted but not in encrypted list?
+        if(nodeDoc.encrypted.true === script.encrypted) {
+
+            // insert script into encrypted list
+            if(0 > eidx) {
+                encrypted.push(script.name);
+            }
+
+            // remove script from decrypted list
+            if(0 <= didx) {
+                decrypted.splice(didx, 1);
+            }
+
+        // scrypt decrypted but not in decrypted list?
+        } else if(nodeDoc.encrypted.decrypted === script.encrypted) {
+        
+            // insert script into decrypted list
+            if(0 > didx) {
+                decrypted.push(script.name);
+            }
+
+            // remove script form encrypted list
+            if(0 <= eidx) {
+                encrypted.splice(eidx, 1);
+            }
+
+        // script unencrypted? default state
+        } else if(nodeDoc.encrypted.false === script.encrypted) {
+        
+            // doesn't need a list, it's the default state
+
+            // just remove script from encrypted and decrypted list
+            if(0 <= eidx) {
+                encrypted.splice(eidx, 1);
+            }
+            if(0 <= didx) {
+                decrypted.splice(didx, 1);
+            }
+        }
+    });
+
+    // update lists in settings.json
+    conf.update('encrypted', encrypted);
+    conf.update('decrypted', decrypted);
 }
 
 
@@ -773,13 +798,18 @@ async function ensureScriptName(paramscript?: string): Promise<string> {
 
 
 
-
+/**
+ * Return script of type scriptT containing name and source code of given path or textdocument.
+ * 
+ * @param param path to script or textdocument of script
+ */
 async function ensureScript(param?: string | vscode.TextDocument): Promise<nodeDoc.scriptT> {
     console.log('ensureScript');
     return new Promise<nodeDoc.scriptT>((resolve, reject) => {
 
         if(param) {
             if(typeof param === 'string') {
+                // param: path to script
                 let ret = nodeDoc.getScript(param);
                 if(typeof ret !== 'string') {
                     resolve(ret);
@@ -787,7 +817,7 @@ async function ensureScript(param?: string | vscode.TextDocument): Promise<nodeD
                     reject(ret);
                 }
 
-            } else { // param === vscode.TextDocument
+            } else { // param: vscode.TextDocument
                 let ret: nodeDoc.scriptT = {
                     name: path.basename(param.fileName, '.js'),
                     sourceCode: param.getText()
