@@ -101,7 +101,6 @@ export function activate(context: vscode.ExtensionContext) {
             }).catch((reason) => {
                 vscode.window.showErrorMessage('upload script failed: ' + reason);
             });
-            
         })
     );
 
@@ -251,7 +250,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 
     // ----------------------------------------------------------
-    //             Save Login Data
+    //             Get Login Data
     // ----------------------------------------------------------
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.saveConfiguration', () => {
@@ -443,9 +442,6 @@ function readEncryptStates(scripts: nodeDoc.scriptT[]) {
 
     scripts.forEach(function(script) {
 
-        // default
-        script.encrypted = nodeDoc.encrypted.false;
-
         // check if script is in one of the lists
         // and read the state
         if(0 <= encrypted.indexOf(script.name)) {
@@ -462,7 +458,20 @@ function readEncryptStates(scripts: nodeDoc.scriptT[]) {
  * @param scripts The scripts of which we want to update the encrypt states.
  */
 function updateEncryptStates(scripts: nodeDoc.scriptT[]) {
-    if(!vscode.workspace || !scripts || 0 === scripts.length) {
+    if(!scripts || 0 === scripts.length) {
+        return;
+    }
+    if(!vscode.workspace) {
+        scripts.forEach(function(script) {
+            if(script.encrypted === nodeDoc.encrypted.true) {
+                vscode.window.showErrorMessage('script is encrypted! workspace required to save this state');
+                return;
+            }
+            if(script.encrypted === nodeDoc.encrypted.decrypted) {
+                vscode.window.showErrorMessage('script is decrypted! workspace required to save this state');
+                return;
+            }
+        });
         return;
     }
 
@@ -880,8 +889,14 @@ async function createLaunchJson(_loginData:nodeDoc.LoginData): Promise<void> {
     console.log('createLaunchJson');
 
     return new Promise<void>((resolve, reject) => {
+        let rootPath;
 
-        let rootPath = vscode.workspace.rootPath;
+        if(!vscode.workspace) {
+            reject('no workspace');
+        } else {
+            rootPath = vscode.workspace.rootPath;
+        }
+
         if(rootPath) {
             let filename = path.join(rootPath, '.vscode', 'launch.json');
             fs.stat(filename, function (err, stats) {
