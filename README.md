@@ -28,6 +28,11 @@ Initial public version.
 
 * Add compare script.
 
+### 1.0.7
+
+* Handle encrypted scripts.
+* Scripts can be uploaded automatically. Upload mode can be saved for every script separately.
+
 ## Known Issues
 
 
