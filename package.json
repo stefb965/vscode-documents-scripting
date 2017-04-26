@@ -2,7 +2,7 @@
   "name": "vscode-documents-scripting",
   "displayName": "VS Code DOCUMENTS Scripting",
   "description": "This extension provides support for creating and editing JavaScript files on a DOCUMENTS Server.",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "publisher": "otris-software",
   "author": {
     "name": "otris software",
@@ -40,15 +40,24 @@
           "type": "array",
           "default": []
         },
-        "vscode-documents-scripting.forceUploadOnSave": {
+        "vscode-documents-scripting.uploadOnSave": {
           "type": "array",
           "default": [],
           "description": "Always upload scripts in this list after save automatically."
         },
-        "vscode-documents-scripting.blockUploadOnSave": {
+        "vscode-documents-scripting.uploadManually": {
           "type": "array",
           "default": [],
           "description": "Never automatically upload scripts in this list and never ask to."
+        },
+        "vscode-documents-scripting.forceUpload": {
+          "type": "array",
+          "default": [],
+          "description": "Always overwrite server script, ignore changes."
+        },
+        "vscode-documents-scripting.readOnly": {
+          "type": "array",
+          "default": []
         }
       }
     },

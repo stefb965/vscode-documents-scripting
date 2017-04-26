@@ -123,6 +123,7 @@ export function activate(context: vscode.ExtensionContext) {
                     return nodeDoc.sdsSession(loginData, [script], nodeDoc.downloadScript).then((value) => {
                         script = value[0];
                         updateEncryptStates([script]);
+                        // updateHashValues([script]);
                         vscode.window.setStatusBarMessage('downloaded: ' + script.name);
                     });
                 });
@@ -238,6 +239,7 @@ export function activate(context: vscode.ExtensionContext) {
                     return nodeDoc.sdsSession(loginData, _scripts, nodeDoc.dwonloadAll).then((scripts) => {
                         let numscripts = scripts.length;
                         updateEncryptStates(scripts);
+                        // updateHashValues(scripts);
                         vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
                     });
                 });
@@ -300,18 +302,6 @@ export function activate(context: vscode.ExtensionContext) {
         }, this);
         context.subscriptions.push(disposableOnSave);
 
-        // ----------------------------------------------------------
-        //             Update Encrypt States On Delete File
-        // ----------------------------------------------------------
-        let disposableOnDelete: vscode.Disposable;
-        let watcher = vscode.workspace.createFileSystemWatcher("**/*.js", true, true, false);
-        watcher.onDidDelete((file) => {
-            if(file && '.js' == path.extname(file.fsPath)) {
-                let scriptname = path.basename(file.fsPath, '.js');
-                let script: nodeDoc.scriptT = {name: scriptname}
-                updateEncryptStates([script]);
-            }
-        });
     }
     
 
@@ -362,8 +352,8 @@ export function deactivate() {
  */
 async function ensureUploadOnSave(param: string): Promise<boolean>{
     return new Promise<boolean>((resolve, reject) => {
-        let force: string[];
-        let block: string[];
+        let always: string[];
+        let never: string[];
 
         if(!vscode.workspace || !param || 0 === param.length) {
             return;
@@ -375,18 +365,18 @@ async function ensureUploadOnSave(param: string): Promise<boolean>{
         let conf = vscode.workspace.getConfiguration('vscode-documents-scripting');
 
         // get the encrypted/decrypted lists
-        let _force = conf.get('forceUploadOnSave');
-        let _block = conf.get('blockUploadOnSave');
-        if(_force instanceof Array && _block instanceof Array) {
-            force = _force;
-            block = _block;
+        let _always = conf.get('uploadOnSave');
+        let _never = conf.get('uploadManually');
+        if(_always instanceof Array && _never instanceof Array) {
+            always = _always;
+            never = _never;
         } else {
             vscode.window.showWarningMessage('Cannot read encrypted states from settings.json');
             reject();
         }
-        if(0 <= block.indexOf(scriptname)) {
+        if(0 <= never.indexOf(scriptname)) {
             resolve(false);
-        } else if(0 <= force.indexOf(scriptname)) {
+        } else if(0 <= always.indexOf(scriptname)) {
             resolve(true);
         } else {
             const QUESTION: string = `Upload script ${scriptname}?`;
@@ -400,12 +390,12 @@ async function ensureUploadOnSave(param: string): Promise<boolean>{
                 } else if(NO === answer) {
                     resolve(false);
                 } else if(ALWAYS === answer){
-                    force.push(scriptname);
-                    conf.update('forceUploadOnSave', force);
+                    always.push(scriptname);
+                    conf.update('uploadOnSave', always);
                     resolve(true);
                 } else if(NEVER === answer) {
-                    block.push(scriptname);
-                    conf.update('blockUploadOnSave', block);
+                    never.push(scriptname);
+                    conf.update('uploadManually', never);
                     resolve(false);
                 }
             });
@@ -415,7 +405,8 @@ async function ensureUploadOnSave(param: string): Promise<boolean>{
 
 
 /**
- * Read the encrypt states of the given scripts from settings.json.
+ * Read the encrypt states of the scripts from settings.json.
+ * 
  * @param scripts the scripts of which we want to read the encrypt state
  */
 function readEncryptStates(scripts: nodeDoc.scriptT[]) {
@@ -454,7 +445,8 @@ function readEncryptStates(scripts: nodeDoc.scriptT[]) {
 }
 
 /**
- * Store the encrypt states of the given scripts in settings.json.
+ * Store the encrypt states of the scripts in settings.json.
+ * 
  * @param scripts The scripts of which we want to update the encrypt states.
  */
 function updateEncryptStates(scripts: nodeDoc.scriptT[]) {
@@ -525,7 +517,7 @@ function updateEncryptStates(scripts: nodeDoc.scriptT[]) {
         // script unencrypted? default state
         } else if(nodeDoc.encrypted.false === script.encrypted) {
         
-            // doesn't need a list, it's the default state
+            // default state, no list required
 
             // just remove script from encrypted and decrypted list
             if(0 <= eidx) {
@@ -540,6 +532,47 @@ function updateEncryptStates(scripts: nodeDoc.scriptT[]) {
     // update lists in settings.json
     conf.update('encrypted', encrypted);
     conf.update('decrypted', decrypted);
+}
+
+
+function updateHashValues(pscripts: nodeDoc.scriptT[]) {
+    if(!pscripts || 0 === pscripts.length) {
+        return;
+    }
+    if(!vscode.workspace) {
+        return;
+    }
+
+    // get extension-part of settings.json
+    let conf = vscode.workspace.getConfiguration('vscode-documents-scripting');
+
+    // get the list
+    let _hashValues = conf.get('readOnly');
+    let hashValues: string[];
+    if(_hashValues instanceof Array) {
+        hashValues = _hashValues;
+    } else {
+        vscode.window.showWarningMessage('Cannot write to settings.json');
+        return;
+    }
+
+    // set values
+    pscripts.forEach(function(script) {
+        let updated = false;
+        hashValues.forEach(function(value, idx) {
+            let scriptname = value.split(':')[0];
+            if(scriptname === script.name) {
+                hashValues[idx] = script.name + ':' + script.lastSyncHash;
+                updated = true;
+            }
+        });
+        if(!updated) {
+            hashValues.push(script.name + ':' + script.lastSyncHash);
+        }
+    });
+
+    // update list in settings.json
+    conf.update('readOnly', hashValues);
 }
 
 
