@@ -18,7 +18,7 @@ const REQUIRED_DOCUMENTS_VERSION = '8034';
 
 // like eclipse plugin
 const COMPARE_FOLDER = '.compare';
-const COMPARE_FILE_PREF = 'compare_';
+const COMPARE_FILE_PREFIX = 'compare_';
 
 
 
@@ -93,10 +93,34 @@ export function activate(context: vscode.ExtensionContext) {
                 _param = param._fsPath;
             }
             ensureScript(_param).then((_script) => {
+
                 readEncryptStates([_script]);
+                readHashValues([_script]);
                 return nodeDoc.sdsSession(loginData, [_script], nodeDoc.uploadScript).then((value) => {
-                    let script = value[0];
-                    vscode.window.setStatusBarMessage('uploaded: ' + script.name);
+
+                    // in case of conflict (server-script changed by someone else)
+                    // returned script contains local and server code
+                    // otherwise returned script == input script
+                    let script:nodeDoc.scriptT = value[0];
+
+                    // in case of conflict, ask if script should be force-uploaded
+                    ensureUploadScripts([script]).then(([noConflict, forceUpload]) => {
+
+                        // if forceUpload is empty function resolves anyway
+                        nodeDoc.sdsSession(loginData, forceUpload, nodeDoc.uploadScript).then(() => {
+
+                            // if script had conflict and was not force-uploaded
+                            // conflict is true in this script
+                            if(true !== script.conflict) {
+                                updateHashValues([script]);
+                                updateEncryptStates([script]);
+                                vscode.window.setStatusBarMessage('uploaded: ' + script.name);
+                            }
+                        }).catch((reason) => {
+                            vscode.window.showErrorMessage('force upload ' + script.name + ' failed: ' + reason);
+                        });
+                    }); // no reject in upload scripts
+                    
                 });
             }).catch((reason) => {
                 vscode.window.showErrorMessage('upload script failed: ' + reason);
@@ -120,10 +144,13 @@ export function activate(context: vscode.ExtensionContext) {
             ensureScriptName(_param).then((scriptname) => {
                 return ensurePath(_param, true).then((_path) => {
                     let script: nodeDoc.scriptT = {name: scriptname, path: _path[0]};
+
+                    // only scripts in conflict-mode will get a new hash-value after download
+                    readConflictModes([script]);
                     return nodeDoc.sdsSession(loginData, [script], nodeDoc.downloadScript).then((value) => {
                         script = value[0];
                         updateEncryptStates([script]);
-                        // updateHashValues([script]);
+                        updateHashValues([script]);
                         vscode.window.setStatusBarMessage('downloaded: ' + script.name);
                     });
                 });
@@ -169,27 +196,27 @@ export function activate(context: vscode.ExtensionContext) {
                 _param = param._fsPath;
             }
 
-            // todo: compare should be possible without workspace
-            if(vscode.workspace) {
-                ensurePath(_param, false, true).then((_path) => {
-                    let scriptfolder = _path[0];
-                    let _scriptname = _path[1];
-                    return ensureScriptName(_scriptname).then((scriptname) => {
-                        let comparepath = path.join(vscode.workspace.rootPath, COMPARE_FOLDER);
-                        return createFolder(comparepath, true).then(() => {
-                            let script: nodeDoc.scriptT = {name: scriptname, path: comparepath, rename: COMPARE_FILE_PREF + scriptname};
-                            return nodeDoc.sdsSession(loginData, [script], nodeDoc.downloadScript).then((value) => {
-                                script = value[0];
-                                compareScript(scriptfolder, scriptname);
-                            });
+            ensurePath(_param, false, true).then((_path) => {
+                let scriptfolder = _path[0];
+                let _scriptname = _path[1];
+                return ensureScriptName(_scriptname).then((scriptname) => {
+                    let comparepath;
+                    if(vscode.workspace) {
+                        comparepath = path.join(vscode.workspace.rootPath, COMPARE_FOLDER);
+                    } else {
+                        comparepath = path.join(scriptfolder, COMPARE_FOLDER);
+                    }
+                    return createFolder(comparepath, true).then(() => {
+                        let script: nodeDoc.scriptT = {name: scriptname, path: comparepath, rename: COMPARE_FILE_PREFIX + scriptname};
+                        return nodeDoc.sdsSession(loginData, [script], nodeDoc.downloadScript).then((value) => {
+                            script = value[0];
+                            compareScript(scriptfolder, scriptname);
                         });
                     });
-                }).catch((reason) => {
-                    vscode.window.showErrorMessage('Compare script failed: ' + reason);
                 });
-            } else {
-                vscode.window.showErrorMessage('Please open folder');
-            }
+            }).catch((reason) => {
+                vscode.window.showErrorMessage('Compare script failed: ' + reason);
+            });
         })
     );
 
@@ -207,11 +234,39 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             ensurePath(_param).then((folder) => {
-                return nodeDoc.getScriptsFromFolder(folder[0]).then((_scripts) => {
-                    readEncryptStates(_scripts);
-                    return nodeDoc.sdsSession(loginData, _scripts, nodeDoc.uploadAll).then((scripts) => {
-                        let numscripts = scripts.length;
-                        vscode.window.setStatusBarMessage('uploaded ' + numscripts + ' scripts');
+                return nodeDoc.getScriptsFromFolder(folder[0]).then((folderscripts) => {
+
+                    readEncryptStates(folderscripts);
+                    readHashValues(folderscripts);
+                    return nodeDoc.sdsSession(loginData, folderscripts, nodeDoc.uploadAll).then((value) => {
+                        let retscripts: nodeDoc.scriptT[] = value;
+                        
+                        // retscripts also contains the retscripts that haven't been uploaded because
+                        // of a conflict, in that case member conflict is true and the script contains
+                        // the local and the server code
+
+                        // ask which conflict scripts should be force uploaded and
+                        // get all uploaded scripts
+                        ensureUploadScripts(retscripts).then(([noConflict, forceUpload]) => {
+
+                            // forceUpload might be empty, function resolves anyway
+                            nodeDoc.sdsSession(loginData, forceUpload, nodeDoc.uploadAll).then((value) => {
+                                let retscripts2:nodeDoc.scriptT[] = value;
+
+                                // retscripts2 might be empty
+                                let uploaded = noConflict.concat(retscripts2);
+
+                                // if script had conflict and was not force-uploaded conflict
+                                // is true in this script, hash values and encrypt states
+                                // are only updated for scripts without conflict
+                                updateHashValues(uploaded);
+                                updateEncryptStates(uploaded);
+
+                                vscode.window.setStatusBarMessage('uploaded ' + uploaded.length + ' scripts from ' + folder[0]);
+                            }).catch((reason) => {
+                                vscode.window.showErrorMessage('force upload of conflict scripts failed: ' + reason);
+                            });
+                        });
                     });
                 });
             }).catch((reason) => {
@@ -232,6 +287,10 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             ensurePath(_param, true).then((_path) => {
+
+                // todo:
+                // _scripts = readUploadAll();
+                // if(0 === _scripts.length) =>
                 return nodeDoc.sdsSession(loginData, [], nodeDoc.getScriptNamesFromServer).then((_scripts) => {
                     _scripts.forEach(function(script) {
                         script.path = _path[0];
@@ -239,7 +298,7 @@ export function activate(context: vscode.ExtensionContext) {
                     return nodeDoc.sdsSession(loginData, _scripts, nodeDoc.dwonloadAll).then((scripts) => {
                         let numscripts = scripts.length;
                         updateEncryptStates(scripts);
-                        // updateHashValues(scripts);
+                        updateHashValues(scripts);
                         vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
                     });
                 });
@@ -343,6 +402,68 @@ export function deactivate() {
 
 
 
+
+async function askForUpload(script: nodeDoc.scriptT, all: boolean, none: boolean): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+        if(script.conflict) {
+            if(all) {
+                resolve('All');
+            } else if(none) {
+                resolve('None');
+            } else {
+                const question = script.name + ' has been changed on server, force upload?';
+                let answers = ['Yes', 'No', 'All', 'None'];
+                return vscode.window.showQuickPick(answers, {placeHolder: question}).then((value) => {
+                    resolve(value);
+                });
+            }
+        } else {
+            resolve('NoConflict');
+        }
+    });
+}
+
+
+/**
+ * Return 1. arrray: uploaded scripts 2. array: scripts that user marked to force upload
+ * @param param 
+ */
+async function ensureUploadScripts(scripts: nodeDoc.scriptT[]): Promise<[nodeDoc.scriptT[], nodeDoc.scriptT[]]> {
+    return new Promise<[nodeDoc.scriptT[], nodeDoc.scriptT[]]>((resolve, reject) => {
+        let forceUpload: nodeDoc.scriptT[] = [];
+        let noConflict: nodeDoc.scriptT[] = [];
+        let all = false;
+        let none = false;
+
+        return reduce(scripts, function(numScripts, script) {
+            return askForUpload(script, all, none).then((value) => {
+                if('NoConflict' === value) {
+                    noConflict.push(script);
+                } else if('All' === value) {
+                    script.conflictMode = false;
+                    script.conflict = false;
+                    forceUpload.push(script);
+                    all = true;
+                } else if('Yes' === value) {
+                    script.conflictMode = false;
+                    script.conflict = false;
+                    forceUpload.push(script);
+                } else if('No' === value) {
+                    // do nothing ...
+                } else {
+                    // escape or anything should behave like 'None'
+                    none = true;
+                }
+                return numScripts + 1;
+            });
+        }, 0).then((numScripts) => {
+            resolve([noConflict, forceUpload]);
+        });
+    });
+}
+
+
+
 /**
  * Read in settings.json if the script has to be uploaded always or never.
  * If it's not set, ask user, if the script should be uploaded and if
@@ -401,6 +522,27 @@ async function ensureUploadOnSave(param: string): Promise<boolean>{
             });
         }
     });
+}
+
+
+function readDownloadAll(): nodeDoc.scriptT[] {
+    let scripts: nodeDoc.scriptT[];
+    if(!vscode.workspace) {
+        return scripts;
+    }
+    // get extension-part of settings.json
+    let conf = vscode.workspace.getConfiguration('vscode-documents-scripting');
+
+    // get scriptnames and insert in return list
+    let scriptnames = conf.get('downloadAll');
+    if(scriptnames instanceof Array) {
+        scriptnames.forEach(function(scriptname) {
+            let script: nodeDoc.scriptT = {name: scriptname};
+            scripts.push(script);
+        });
+    }    
+
+    return scripts;
 }
 
 
@@ -485,46 +627,48 @@ function updateEncryptStates(scripts: nodeDoc.scriptT[]) {
 
 
     scripts.forEach(function(script) {
-        let eidx = encrypted.indexOf(script.name);
-        let didx = decrypted.indexOf(script.name);
+        if(true !== script.conflict) {
+            let eidx = encrypted.indexOf(script.name);
+            let didx = decrypted.indexOf(script.name);
 
-        // script encrypted but not in encrypted list?
-        if(nodeDoc.encrypted.true === script.encrypted) {
+            // script encrypted but not in encrypted list?
+            if(nodeDoc.encrypted.true === script.encrypted) {
 
-            // insert script into encrypted list
-            if(0 > eidx) {
-                encrypted.push(script.name);
-            }
+                // insert script into encrypted list
+                if(0 > eidx) {
+                    encrypted.push(script.name);
+                }
 
-            // remove script from decrypted list
-            if(0 <= didx) {
-                decrypted.splice(didx, 1);
-            }
+                // remove script from decrypted list
+                if(0 <= didx) {
+                    decrypted.splice(didx, 1);
+                }
 
-        // scrypt decrypted but not in decrypted list?
-        } else if(nodeDoc.encrypted.decrypted === script.encrypted) {
-        
-            // insert script into decrypted list
-            if(0 > didx) {
-                decrypted.push(script.name);
-            }
+            // scrypt decrypted but not in decrypted list?
+            } else if(nodeDoc.encrypted.decrypted === script.encrypted) {
+            
+                // insert script into decrypted list
+                if(0 > didx) {
+                    decrypted.push(script.name);
+                }
 
-            // remove script form encrypted list
-            if(0 <= eidx) {
-                encrypted.splice(eidx, 1);
-            }
+                // remove script form encrypted list
+                if(0 <= eidx) {
+                    encrypted.splice(eidx, 1);
+                }
 
-        // script unencrypted? default state
-        } else if(nodeDoc.encrypted.false === script.encrypted) {
-        
-            // default state, no list required
+            // script unencrypted? default state
+            } else if(nodeDoc.encrypted.false === script.encrypted) {
+            
+                // default state, no list required
 
-            // just remove script from encrypted and decrypted list
-            if(0 <= eidx) {
-                encrypted.splice(eidx, 1);
-            }
-            if(0 <= didx) {
-                decrypted.splice(didx, 1);
+                // just remove script from encrypted and decrypted list
+                if(0 <= eidx) {
+                    encrypted.splice(eidx, 1);
+                }
+                if(0 <= didx) {
+                    decrypted.splice(didx, 1);
+                }
             }
         }
     });
@@ -532,6 +676,74 @@ function updateEncryptStates(scripts: nodeDoc.scriptT[]) {
     // update lists in settings.json
     conf.update('encrypted', encrypted);
     conf.update('decrypted', decrypted);
+}
+
+
+function readConflictModes(pscripts: nodeDoc.scriptT[]) {
+    if(!pscripts || 0 === pscripts.length) {
+        return;
+    }
+    if(!vscode.workspace) {
+        return;
+    }
+
+    // get extension-part of settings.json
+    let conf = vscode.workspace.getConfiguration('vscode-documents-scripting');
+    
+    let _conflictMode = conf.get('conflictMode');
+    let conflictMode: string[];
+    if(_conflictMode instanceof Array) {
+        conflictMode = _conflictMode;
+    } else {
+        vscode.window.showWarningMessage('Cannot write to settings.json');
+        return;
+    }
+
+    // read values
+    pscripts.forEach(function(script) {
+        if(0 <= conflictMode.indexOf(script.name)) {
+            script.conflictMode = true;
+        }
+    });
+} 
+
+
+function readHashValues(pscripts: nodeDoc.scriptT[]) {
+    if(!pscripts || 0 === pscripts.length) {
+        return;
+    }
+    if(!vscode.workspace) {
+        return;
+    }
+
+    // get extension-part of settings.json
+    let conf = vscode.workspace.getConfiguration('vscode-documents-scripting');
+
+    // get the lists
+    let _hashValues = conf.get('readOnly');
+    let _conflictMode = conf.get('conflictMode');
+    let hashValues: string[];
+    let conflictMode: string[];
+    if(_hashValues instanceof Array && _conflictMode instanceof Array) {
+        hashValues = _hashValues;
+        conflictMode = _conflictMode;
+    } else {
+        vscode.window.showWarningMessage('Cannot write to settings.json');
+        return;
+    }
+
+    // read values
+    pscripts.forEach(function(script) {
+        if(0 <= conflictMode.indexOf(script.name)) {
+            script.conflictMode = true;
+            hashValues.forEach(function(value, idx) {
+                let scriptname = value.split(':')[0];
+                if(scriptname === script.name) {
+                    script.lastSyncHash = hashValues[idx].split(':')[1];
+                }
+            });
+        }
+    });
 }
 
 
@@ -548,9 +760,12 @@ function updateHashValues(pscripts: nodeDoc.scriptT[]) {
 
     // get the list
     let _hashValues = conf.get('readOnly');
+    let _conflictMode = conf.get('conflictMode');
     let hashValues: string[];
-    if(_hashValues instanceof Array) {
+    let conflictMode: string[];
+    if(_hashValues instanceof Array && _conflictMode instanceof Array) {
         hashValues = _hashValues;
+        conflictMode = _conflictMode;
     } else {
         vscode.window.showWarningMessage('Cannot write to settings.json');
         return;
@@ -558,16 +773,18 @@ function updateHashValues(pscripts: nodeDoc.scriptT[]) {
 
     // set values
     pscripts.forEach(function(script) {
-        let updated = false;
-        hashValues.forEach(function(value, idx) {
-            let scriptname = value.split(':')[0];
-            if(scriptname === script.name) {
-                hashValues[idx] = script.name + ':' + script.lastSyncHash;
-                updated = true;
+        if(0 <= conflictMode.indexOf(script.name) && true !== script.conflict) {
+            let updated = false;
+            hashValues.forEach(function(value, idx) {
+                let scriptname = value.split(':')[0];
+                if(scriptname === script.name) {
+                    hashValues[idx] = script.name + ':' + script.lastSyncHash;
+                    updated = true;
+                }
+            });
+            if(!updated) {
+                hashValues.push(script.name + ':' + script.lastSyncHash);
             }
-        });
-        if(!updated) {
-            hashValues.push(script.name + ':' + script.lastSyncHash);
         }
     });
 
@@ -581,7 +798,7 @@ function compareScript(_path, scriptname) {
         vscode.window.showErrorMessage('Select or open a file to compare');
         return;
     } else {
-        let leftfile = path.join(vscode.workspace.rootPath, COMPARE_FOLDER, COMPARE_FILE_PREF + scriptname + '.js');
+        let leftfile = path.join(vscode.workspace.rootPath, COMPARE_FOLDER, COMPARE_FILE_PREFIX + scriptname + '.js');
         let rightfile = path.join(_path, scriptname + '.js');
         let lefturi = vscode.Uri.file(leftfile);
         let righturi = vscode.Uri.file(rightfile);
@@ -633,6 +850,10 @@ async function createFolder(_path: string, hidden = false): Promise<void> {
     });
 }
 
+
+/**
+ * Returns [folder], if fileOrFolder is a folder and [folder, file] if fileOrFolder is a file.
+ */
 async function getFolder(fileOrFolder: string, allowSubFolder = false): Promise<string[]> {
     return new Promise<string[]>((resolve, reject) => {
         fs.stat(fileOrFolder, function (err, stats) {
@@ -674,6 +895,9 @@ async function getFolder(fileOrFolder: string, allowSubFolder = false): Promise<
 }
 
 
+/**
+ * Returns [folder], if fileOrFolder is a folder and [folder, file] if fileOrFolder is a file.
+ */
 async function ensurePath(fileOrFolder: string, allowSubDir = false, withBaseName = false): Promise<string[]> {
     console.log('ensurePath');
 

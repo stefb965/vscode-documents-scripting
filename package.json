@@ -50,10 +50,14 @@
           "default": [],
           "description": "Never automatically upload scripts in this list and never ask to."
         },
-        "vscode-documents-scripting.forceUpload": {
+        "vscode-documents-scripting.conflictMode": {
           "type": "array",
           "default": [],
           "description": "Always overwrite server script, ignore changes."
+        },
+        "vscode-documents-scripting.downloadAll": {
+          "type": "array",
+          "default": []
         },
         "vscode-documents-scripting.readOnly": {
           "type": "array",
