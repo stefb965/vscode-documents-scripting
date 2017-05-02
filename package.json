@@ -55,13 +55,19 @@
           "default": [],
           "description": "Always overwrite server script, ignore changes."
         },
-        "vscode-documents-scripting.downloadAll": {
-          "type": "array",
-          "default": []
-        },
         "vscode-documents-scripting.readOnly": {
           "type": "array",
           "default": []
+        },
+        "vscode-documents-scripting.downloadScripts": {
+          "type": "array",
+          "default": [],
+          "description": "Scripts to download on command Download Scripts To Folder."
+        },
+        "vscode-documents-scripting.serverScripts": {
+          "type": "array",
+          "default": [],
+          "description": "Names of all scripts on server."
         }
       }
     },

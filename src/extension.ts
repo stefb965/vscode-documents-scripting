@@ -289,8 +289,9 @@ export function activate(context: vscode.ExtensionContext) {
             ensurePath(_param, true).then((_path) => {
 
                 // todo:
-                // _scripts = readUploadAll();
-                // if(0 === _scripts.length) =>
+                // create async function getDownloadScripts():
+                //     _scripts = readDownloadScripts();
+                //     if(0 === _scripts.length) =>
                 return nodeDoc.sdsSession(loginData, [], nodeDoc.getScriptNamesFromServer).then((_scripts) => {
                     _scripts.forEach(function(script) {
                         script.path = _path[0];
@@ -440,12 +441,12 @@ async function ensureUploadScripts(scripts: nodeDoc.scriptT[]): Promise<[nodeDoc
                 if('NoConflict' === value) {
                     noConflict.push(script);
                 } else if('All' === value) {
-                    script.conflictMode = false;
+                    script.forceUpload = true;
                     script.conflict = false;
                     forceUpload.push(script);
                     all = true;
                 } else if('Yes' === value) {
-                    script.conflictMode = false;
+                    script.forceUpload = true;
                     script.conflict = false;
                     forceUpload.push(script);
                 } else if('No' === value) {
@@ -525,7 +526,7 @@ async function ensureUploadOnSave(param: string): Promise<boolean>{
 }
 
 
-function readDownloadAll(): nodeDoc.scriptT[] {
+function readDownloadScripts(): nodeDoc.scriptT[] {
     let scripts: nodeDoc.scriptT[];
     if(!vscode.workspace) {
         return scripts;
@@ -534,7 +535,7 @@ function readDownloadAll(): nodeDoc.scriptT[] {
     let conf = vscode.workspace.getConfiguration('vscode-documents-scripting');
 
     // get scriptnames and insert in return list
-    let scriptnames = conf.get('downloadAll');
+    let scriptnames = conf.get('downloadScripts');
     if(scriptnames instanceof Array) {
         scriptnames.forEach(function(scriptname) {
             let script: nodeDoc.scriptT = {name: scriptname};
@@ -543,6 +544,13 @@ function readDownloadAll(): nodeDoc.scriptT[] {
     }    
 
     return scripts;
+}
+
+
+function updateServerScripts() {
+    // todo
+    // list names of all server scripts in array
+    // serverScripts in settings.json
 }
 
 
@@ -852,14 +860,15 @@ async function createFolder(_path: string, hidden = false): Promise<void> {
 
 
 /**
- * Returns [folder], if fileOrFolder is a folder and [folder, file] if fileOrFolder is a file.
+ * Returns [folder:string], if fileOrFolder is a folder and
+ * [folder:string, file:string] if fileOrFolder is a file.
  */
-async function getFolder(fileOrFolder: string, allowSubFolder = false): Promise<string[]> {
+async function getFolder(fileOrFolder: string, allowNewSubFolder = false): Promise<string[]> {
     return new Promise<string[]>((resolve, reject) => {
         fs.stat(fileOrFolder, function (err, stats) {
             
             if(err) {
-                if(allowSubFolder && 'ENOENT' === err.code && !path.extname(fileOrFolder)) {
+                if(allowNewSubFolder && 'ENOENT' === err.code && 'js' !== path.extname(fileOrFolder)) {
                     let p = fileOrFolder.split(path.sep);
                     let newfolder = p.pop();
                     let _path = p.join(path.sep);
