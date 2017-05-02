@@ -22,7 +22,7 @@ Initial public version.
 ### 1.0.5
 
 * Extend context menu entries.
-* Improved error handling.
+* Improve error handling.
 
 ### 1.0.6
 
@@ -33,6 +33,16 @@ Initial public version.
 * Handle encrypted scripts.
 * Scripts can be uploaded automatically. Upload mode can be saved for every script separately.
 
+### 1.0.8
+
+* Only fixes.
+
+### 1.0.9
+
+* Insert conflictMode-list in settings.json. Before a script from this list is uploaded, the
+state of the server script is checked. If the server script has been changed since last up-
+or download, the user can decide to cancel the upload.
+
 ## Known Issues
 
 
@@ -41,7 +51,7 @@ Initial public version.
 If something doesn't work, please try to reproduce the issue and file a bug [here](https://github.com/otris/vscode-documents-scripting/issues) if it is not already known. Please remember to
 
 - Include the version you are using in the report.
-- Tell us which server application you are debugging against and on what OS that server is running.
+- Tell us which server application you are using and on what OS that server is running.
 - Include any logs, if possible.
 
 
