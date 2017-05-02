@@ -286,16 +286,22 @@ export function activate(context: vscode.ExtensionContext) {
                 _param = param._fsPath;
             }
 
+            // get path where scripts will be stored
             ensurePath(_param, true).then((_path) => {
 
-                // todo:
-                // create async function getDownloadScripts():
-                //     _scripts = readDownloadScripts();
-                //     if(0 === _scripts.length) =>
-                return nodeDoc.sdsSession(loginData, [], nodeDoc.getScriptNamesFromServer).then((_scripts) => {
+                // read scriptnames from downloadScripts-list in settings,
+                // if this list is empty, get all scriptnames from server
+                return getDownloadScriptNames(loginData).then((_scripts) => {
+
+                    // set download path to scripts
                     _scripts.forEach(function(script) {
                         script.path = _path[0];
                     });
+
+                    // only scripts in conflict-mode will get a new hash-value after download
+                    readConflictModes(_scripts);
+
+                    // download scripts
                     return nodeDoc.sdsSession(loginData, _scripts, nodeDoc.dwonloadAll).then((scripts) => {
                         let numscripts = scripts.length;
                         updateEncryptStates(scripts);
@@ -530,8 +536,26 @@ async function ensureUploadOnSave(param: string): Promise<boolean>{
 }
 
 
+
+async function getDownloadScriptNames(loginData: nodeDoc.LoginData):  Promise<nodeDoc.scriptT[]>{
+    return new Promise<nodeDoc.scriptT[]>((resolve, reject) => {
+        let scripts: nodeDoc.scriptT[] = readDownloadScripts();
+        if(0 < scripts.length) {
+            resolve(scripts);
+        } else {
+            nodeDoc.sdsSession(loginData, [], nodeDoc.getScriptNamesFromServer).then((_scripts) => {
+                resolve(_scripts);
+            }).catch((reason) => {
+                reject(reason);
+            });
+        }
+    });
+}
+
+
+
 function readDownloadScripts(): nodeDoc.scriptT[] {
-    let scripts: nodeDoc.scriptT[];
+    let scripts: nodeDoc.scriptT[] = [];
     if(!vscode.workspace) {
         return scripts;
     }
@@ -1068,7 +1092,7 @@ async function ensureScript(param?: string | vscode.TextDocument): Promise<nodeD
 // additional function to get login data...
 
 
-async function createLoginData(_loginData:nodeDoc.LoginData): Promise<void> {
+async function createLoginData(_loginData: nodeDoc.LoginData): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         askForLoginData(_loginData).then(() => {
             createLaunchJson(_loginData).then(() => {

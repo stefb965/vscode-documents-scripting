@@ -62,7 +62,7 @@
         "vscode-documents-scripting.downloadScripts": {
           "type": "array",
           "default": [],
-          "description": "Scripts to download on command Download Scripts To Folder."
+          "description": "Scripts to download on command Download Scripts To Folder. If this list is empty all scripts from server are downloaded."
         },
         "vscode-documents-scripting.serverScripts": {
           "type": "array",
