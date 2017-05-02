@@ -402,24 +402,28 @@ export function deactivate() {
 }
 
 
-
+const FORCE_UPLOAD_YES = 'Yes, this one';
+const FORCE_UPLOAD_NO = 'No, not this one';
+const FORCE_UPLOAD_ALL = 'Yes, all during this command';
+const FORCE_UPLOAD_NONE = 'No, none during this command';
+const NO_CONFLICT = 'No conflict';
 
 async function askForUpload(script: nodeDoc.scriptT, all: boolean, none: boolean): Promise<string> {
     return new Promise<string>((resolve, reject) => {
         if(script.conflict) {
             if(all) {
-                resolve('All');
+                resolve(FORCE_UPLOAD_ALL);
             } else if(none) {
-                resolve('None');
+                resolve(FORCE_UPLOAD_NONE);
             } else {
                 const question = script.name + ' has been changed on server, force upload?';
-                let answers = ['Yes', 'No', 'All', 'None'];
+                let answers = [FORCE_UPLOAD_YES, FORCE_UPLOAD_NO, FORCE_UPLOAD_ALL, FORCE_UPLOAD_NONE];
                 return vscode.window.showQuickPick(answers, {placeHolder: question}).then((value) => {
                     resolve(value);
                 });
             }
         } else {
-            resolve('NoConflict');
+            resolve(NO_CONFLICT);
         }
     });
 }
@@ -438,18 +442,18 @@ async function ensureUploadScripts(scripts: nodeDoc.scriptT[]): Promise<[nodeDoc
 
         return reduce(scripts, function(numScripts, script) {
             return askForUpload(script, all, none).then((value) => {
-                if('NoConflict' === value) {
+                if(NO_CONFLICT === value) {
                     noConflict.push(script);
-                } else if('All' === value) {
+                } else if(FORCE_UPLOAD_ALL === value) {
                     script.forceUpload = true;
                     script.conflict = false;
                     forceUpload.push(script);
                     all = true;
-                } else if('Yes' === value) {
+                } else if(FORCE_UPLOAD_YES === value) {
                     script.forceUpload = true;
                     script.conflict = false;
                     forceUpload.push(script);
-                } else if('No' === value) {
+                } else if(FORCE_UPLOAD_NO === value) {
                     // do nothing ...
                 } else {
                     // escape or anything should behave like 'None'
