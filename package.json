@@ -26,7 +26,8 @@
     "onCommand:extension.runScript",
     "onCommand:extension.compareScript",
     "onCommand:extension.uploadScriptsFromFolder",
-    "onCommand:extension.downloadAllScripts"
+    "onCommand:extension.downloadScriptsToFolder",
+    "onCommand:extension.downloadScriptNames"
   ],
   "main": "./out/src/extension",
   "contributes": {
@@ -103,8 +104,13 @@
         "category": "DOCUMENTS"
       },
       {
-        "command": "extension.downloadAllScripts",
+        "command": "extension.downloadScriptsToFolder",
         "title": "Download Scripts To Folder",
+        "category": "DOCUMENTS"
+      },
+      {
+        "command": "extension.downloadScriptNames",
+        "title": "Download Scriptnames to settings.json",
         "category": "DOCUMENTS"
       },
       {
@@ -152,14 +158,19 @@
           "group": "DOCUMENTS@6"
         },
         {
-          "command": "extension.downloadAllScripts",
+          "command": "extension.downloadScriptsToFolder",
           "when": "resourceLangId == javascript",
           "group": "DOCUMENTS@7"
         },
         {
-          "command": "extension.downloadAllScripts",
+          "command": "extension.downloadScriptsToFolder",
           "when": "explorerResourceIsFolder",
           "group": "DOCUMENTS@8"
+        },
+        {
+          "command": "extension.downloadScriptNames",
+          "when": "resourceLangId == json",
+          "group": "DOCUMENTS@9"
         }
       ],
       "editor/context": [
@@ -187,6 +198,11 @@
           "command": "extension.viewDocumentation",
           "when": "resourceLangId == typescript",
           "group": "DOCUMENTS@5"
+        },
+        {
+          "command": "extension.downloadScriptNames",
+          "when": "resourceLangId == json",
+          "group": "DOCUMENTS@6"
         }
       ]
     }

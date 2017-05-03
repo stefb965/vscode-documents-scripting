@@ -280,7 +280,7 @@ export function activate(context: vscode.ExtensionContext) {
     //             Download All
     // ----------------------------------------------------------
     context.subscriptions.push(
-        vscode.commands.registerCommand('extension.downloadAllScripts', (param) => {
+        vscode.commands.registerCommand('extension.downloadScriptsToFolder', (param) => {
             let _param;
             if(param) {
                 _param = param._fsPath;
@@ -289,8 +289,7 @@ export function activate(context: vscode.ExtensionContext) {
             // get path where scripts will be stored
             ensurePath(_param, true).then((_path) => {
 
-                // read scriptnames from downloadScripts-list in settings,
-                // if this list is empty, get all scriptnames from server
+                // get names of scripts that should be downloaded
                 return getDownloadScriptNames(loginData).then((_scripts) => {
 
                     // set download path to scripts
@@ -315,6 +314,19 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    // ----------------------------------------------------------
+    //             Download Scriptnames
+    // ----------------------------------------------------------
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.downloadScriptNames', () => {
+            nodeDoc.sdsSession(loginData, [], nodeDoc.getScriptNamesFromServer).then((_scripts) => {
+                setServerScripts(_scripts);
+                vscode.window.setStatusBarMessage('saved ' + _scripts.length + ' scriptnames to settings.json');
+            }).catch((reason) => {
+                vscode.window.showErrorMessage('download scriptnames failed: ' + reason);
+            });
+        })
+    );
 
 
     // ----------------------------------------------------------
@@ -414,6 +426,13 @@ const FORCE_UPLOAD_ALL = 'Yes, all during this command';
 const FORCE_UPLOAD_NONE = 'No, none during this command';
 const NO_CONFLICT = 'No conflict';
 
+/**
+ * Subfunction of ensureUploadScripts.
+ * 
+ * @param script 
+ * @param all 
+ * @param none 
+ */
 async function askForUpload(script: nodeDoc.scriptT, all: boolean, none: boolean): Promise<string> {
     return new Promise<string>((resolve, reject) => {
         if(script.conflict) {
@@ -436,8 +455,13 @@ async function askForUpload(script: nodeDoc.scriptT, all: boolean, none: boolean
 
 
 /**
- * Return 1. arrray: uploaded scripts 2. array: scripts that user marked to force upload
- * @param param 
+ * Ask user for all conflicted scripts if they should be force uploaded or if upload should
+ * be cancelled
+ * 
+ * @param param List of potentially conflicted scripts.
+ * 
+ * @return Two arrays containing scripts of input array.
+ * 1. arrray: scripts that are already uploaded 2. array: scripts that user marked to force upload.
  */
 async function ensureUploadScripts(scripts: nodeDoc.scriptT[]): Promise<[nodeDoc.scriptT[], nodeDoc.scriptT[]]> {
     return new Promise<[nodeDoc.scriptT[], nodeDoc.scriptT[]]>((resolve, reject) => {
@@ -476,7 +500,7 @@ async function ensureUploadScripts(scripts: nodeDoc.scriptT[]): Promise<[nodeDoc
 
 
 /**
- * Read in settings.json if the script has to be uploaded always or never.
+ * Read from settings.json if the script must be uploaded.
  * If it's not set, ask user, if the script should be uploaded and if
  * the answer should be saved. If so, save it to settings.json.
  * 
@@ -537,6 +561,12 @@ async function ensureUploadOnSave(param: string): Promise<boolean>{
 
 
 
+/**
+ * Read downloadScripts-list from settings.json, if this list is empty,
+ * get all scriptnames from server.
+ * 
+ * @param loginData 
+ */
 async function getDownloadScriptNames(loginData: nodeDoc.LoginData):  Promise<nodeDoc.scriptT[]>{
     return new Promise<nodeDoc.scriptT[]>((resolve, reject) => {
         let scripts: nodeDoc.scriptT[] = readDownloadScripts();
@@ -554,6 +584,9 @@ async function getDownloadScriptNames(loginData: nodeDoc.LoginData):  Promise<no
 
 
 
+/**
+ * Read list downloadScripts from settings.json.
+ */
 function readDownloadScripts(): nodeDoc.scriptT[] {
     let scripts: nodeDoc.scriptT[] = [];
     if(!vscode.workspace) {
@@ -575,10 +608,25 @@ function readDownloadScripts(): nodeDoc.scriptT[] {
 }
 
 
-function updateServerScripts() {
-    // todo
-    // list names of all server scripts in array
-    // serverScripts in settings.json
+function setServerScripts(scripts: nodeDoc.scriptT[]) {
+    if(!vscode.workspace) {
+        return;
+    }
+    if(!scripts || 0 === scripts.length) {
+        return;
+    }
+    
+    // get extension-part of settings.json
+    let conf = vscode.workspace.getConfiguration('vscode-documents-scripting');
+
+    // get scriptnames
+    let scriptnames: string[] = [];
+    scripts.forEach(function(script) {
+        scriptnames.push(script.name);
+    });
+
+    // update list in settings.json
+    conf.update('serverScripts', scriptnames);
 }
 
 
