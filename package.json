@@ -2,7 +2,7 @@
   "name": "vscode-documents-scripting",
   "displayName": "VS Code DOCUMENTS Scripting",
   "description": "This extension provides support for creating and editing JavaScript files on a DOCUMENTS Server.",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "publisher": "otris-software",
   "author": {
     "name": "otris software",

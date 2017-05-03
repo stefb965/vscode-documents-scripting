@@ -43,6 +43,11 @@ Initial public version.
 state of the server script is checked. If the server script has been changed since last up-
 or download, the user can decide to cancel the upload.
 
+### 1.0.10
+
+* Workaround for downloading selected scripts.
+
+
 ## Known Issues
 
 
