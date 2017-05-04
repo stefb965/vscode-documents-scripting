@@ -27,7 +27,8 @@
     "onCommand:extension.compareScript",
     "onCommand:extension.uploadScriptsFromFolder",
     "onCommand:extension.downloadScriptsToFolder",
-    "onCommand:extension.downloadScriptNames"
+    "onCommand:extension.downloadScriptNames",
+    "onCommand:extension.downloadScriptParameters"
   ],
   "main": "./out/src/extension",
   "contributes": {
@@ -114,6 +115,11 @@
         "category": "DOCUMENTS"
       },
       {
+        "command": "extension.downloadScriptParameters",
+        "title": "Download Script Parameters",
+        "category": "DOCUMENTS"
+      },
+      {
         "command": "extension.viewDocumentation",
         "title": "View Documentation",
         "category": "DOCUMENTS"
@@ -171,6 +177,11 @@
           "command": "extension.downloadScriptNames",
           "when": "resourceLangId == json",
           "group": "DOCUMENTS@9"
+        },
+        {
+          "command": "extension.downloadScriptParameters",
+          "when": "resourceLangId == json",
+          "group": "DOCUMENTS@10"
         }
       ],
       "editor/context": [
@@ -203,6 +214,11 @@
           "command": "extension.downloadScriptNames",
           "when": "resourceLangId == json",
           "group": "DOCUMENTS@6"
+        },
+        {
+          "command": "extension.downloadScriptParameters",
+          "when": "resourceLangId == json",
+          "group": "DOCUMENTS@7"
         }
       ]
     }

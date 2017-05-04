@@ -22,7 +22,15 @@ const COMPARE_FILE_PREFIX = 'compare_';
 
 
 
+const FORCE_UPLOAD_YES = 'Yes';
+const FORCE_UPLOAD_NO = 'No';
+const FORCE_UPLOAD_ALL = 'Yes (remember my answer for this operation)';
+const FORCE_UPLOAD_NONE = 'No (remeber my answer for this operation)';
+const NO_CONFLICT = 'No conflict';
 
+
+
+// todo debugger
 const initialConfigurations = [
     {
         name: 'Launch Script on Server',
@@ -66,341 +74,100 @@ const initialConfigurations = [
 
 export function activate(context: vscode.ExtensionContext) {
 
-    let myOutputChannel: vscode.OutputChannel = vscode.window.createOutputChannel('MyChannelName');
+    let myOutputChannel: vscode.OutputChannel = vscode.window.createOutputChannel('documents-scripting-channel');
 
     // login data...
 
-    // object loginData should be deleted on deactivation
     let launchjson;
     if(vscode.workspace) {
         launchjson = path.join(vscode.workspace.rootPath, '.vscode', 'launch.json');
     }
     let loginData: nodeDoc.LoginData = new nodeDoc.LoginData(launchjson);
     loginData.getLoginData = createLoginData;
+    // object loginData should be deleted on deactivation
     context.subscriptions.push(loginData);
 
 
     // register commands...
 
-
-    // ----------------------------------------------------------
-    //             Upload Script
-    // ----------------------------------------------------------
+    // Upload script
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.uploadScript', (param) => {
-            let _param;
-            if (param) {
-                _param = param._fsPath;
-            }
-            ensureScript(_param).then((_script) => {
-
-                readEncryptStates([_script]);
-                readHashValues([_script]);
-                return nodeDoc.sdsSession(loginData, [_script], nodeDoc.uploadScript).then((value) => {
-
-                    // in case of conflict (server-script changed by someone else)
-                    // returned script contains local and server code
-                    // otherwise returned script == input script
-                    let script:nodeDoc.scriptT = value[0];
-
-                    // in case of conflict, ask if script should be force-uploaded
-                    ensureUploadScripts([script]).then(([noConflict, forceUpload]) => {
-
-                        // if forceUpload is empty function resolves anyway
-                        nodeDoc.sdsSession(loginData, forceUpload, nodeDoc.uploadScript).then(() => {
-
-                            // if script had conflict and was not force-uploaded
-                            // conflict is true in this script
-                            if(true !== script.conflict) {
-                                updateHashValues([script]);
-                                updateEncryptStates([script]);
-                                vscode.window.setStatusBarMessage('uploaded: ' + script.name);
-                            }
-                        }).catch((reason) => {
-                            vscode.window.showErrorMessage('force upload ' + script.name + ' failed: ' + reason);
-                        });
-                    }); // no reject in upload scripts
-                    
-                });
-            }).catch((reason) => {
-                vscode.window.showErrorMessage('upload script failed: ' + reason);
-            });
+            commandUploadScript(loginData, param);
         })
     );
 
-
-
-
-    // ----------------------------------------------------------
-    //             Download Script
-    // ----------------------------------------------------------
+    // Download script
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.downloadScript', (param) => {
-            let _param;
-            if(param) {
-                _param = param._fsPath;
-            }
-
-            ensureScriptName(_param).then((scriptname) => {
-                return ensurePath(_param, true).then((_path) => {
-                    let script: nodeDoc.scriptT = {name: scriptname, path: _path[0]};
-
-                    // only scripts in conflict-mode will get a new hash-value after download
-                    readConflictModes([script]);
-                    return nodeDoc.sdsSession(loginData, [script], nodeDoc.downloadScript).then((value) => {
-                        script = value[0];
-                        updateEncryptStates([script]);
-                        updateHashValues([script]);
-                        vscode.window.setStatusBarMessage('downloaded: ' + script.name);
-                    });
-                });
-            }).catch((reason) => {
-                vscode.window.showErrorMessage('download script failed: ' + reason);
-            });
+            commandDownloadScript(loginData, param);
         })
     );
 
-
-    // ----------------------------------------------------------
-    //             Run Script
-    // ----------------------------------------------------------
+    // Run script
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.runScript', (param) => {
-            let _param;
-            if(param) {
-                _param = param._fsPath;
-            }
-
-            ensureScriptName(_param).then((scriptname) => {
-                let script: nodeDoc.scriptT = {name: scriptname};
-                return nodeDoc.sdsSession(loginData, [script], nodeDoc.runScript).then((value) => {
-                    script = value[0];
-                    myOutputChannel.append(script.output + os.EOL);
-                    myOutputChannel.show();
-                });
-            }).catch((reason) => {
-                vscode.window.showErrorMessage('run script failed: ' + reason);
-            });
+            commandRunScript(loginData, param, myOutputChannel);
         })
     );
 
-
-
-    // ----------------------------------------------------------
-    //             Compare Script
-    // ----------------------------------------------------------
+    // Compare script
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.compareScript', (param) => {
-            let _param;
-            if(param) {
-                _param = param._fsPath;
-            }
-
-            ensurePath(_param, false, true).then((_path) => {
-                let scriptfolder = _path[0];
-                let _scriptname = _path[1];
-                return ensureScriptName(_scriptname).then((scriptname) => {
-                    let comparepath;
-                    if(vscode.workspace) {
-                        comparepath = path.join(vscode.workspace.rootPath, COMPARE_FOLDER);
-                    } else {
-                        comparepath = path.join(scriptfolder, COMPARE_FOLDER);
-                    }
-                    return createFolder(comparepath, true).then(() => {
-                        let script: nodeDoc.scriptT = {name: scriptname, path: comparepath, rename: COMPARE_FILE_PREFIX + scriptname};
-                        return nodeDoc.sdsSession(loginData, [script], nodeDoc.downloadScript).then((value) => {
-                            script = value[0];
-                            compareScript(scriptfolder, scriptname);
-                        });
-                    });
-                });
-            }).catch((reason) => {
-                vscode.window.showErrorMessage('Compare script failed: ' + reason);
-            });
+            commandCompareScript(loginData, param);
         })
     );
 
-
-
-
-    // ----------------------------------------------------------
-    //             Upload All
-    // ----------------------------------------------------------
+    // Upload all
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.uploadScriptsFromFolder', (param) => {
-            let _param;
-            if(param) {
-                _param = param._fsPath;
-            }
-
-            ensurePath(_param).then((folder) => {
-                return nodeDoc.getScriptsFromFolder(folder[0]).then((folderscripts) => {
-
-                    readEncryptStates(folderscripts);
-                    readHashValues(folderscripts);
-                    return nodeDoc.sdsSession(loginData, folderscripts, nodeDoc.uploadAll).then((value) => {
-                        let retscripts: nodeDoc.scriptT[] = value;
-                        
-                        // retscripts also contains the retscripts that haven't been uploaded because
-                        // of a conflict, in that case member conflict is true and the script contains
-                        // the local and the server code
-
-                        // ask which conflict scripts should be force uploaded and
-                        // get all uploaded scripts
-                        ensureUploadScripts(retscripts).then(([noConflict, forceUpload]) => {
-
-                            // forceUpload might be empty, function resolves anyway
-                            nodeDoc.sdsSession(loginData, forceUpload, nodeDoc.uploadAll).then((value) => {
-                                let retscripts2:nodeDoc.scriptT[] = value;
-
-                                // retscripts2 might be empty
-                                let uploaded = noConflict.concat(retscripts2);
-
-                                // if script had conflict and was not force-uploaded conflict
-                                // is true in this script, hash values and encrypt states
-                                // are only updated for scripts without conflict
-                                updateHashValues(uploaded);
-                                updateEncryptStates(uploaded);
-
-                                vscode.window.setStatusBarMessage('uploaded ' + uploaded.length + ' scripts from ' + folder[0]);
-                            }).catch((reason) => {
-                                vscode.window.showErrorMessage('force upload of conflict scripts failed: ' + reason);
-                            });
-                        });
-                    });
-                });
-            }).catch((reason) => {
-                vscode.window.showErrorMessage('upload all failed: ' + reason);
-            });
+            commandUploadAll(loginData, param);
         })
     );
 
-
-    // ----------------------------------------------------------
-    //             Download All
-    // ----------------------------------------------------------
+    // Download all
     context.subscriptions.push(
         vscode.commands.registerCommand('extension.downloadScriptsToFolder', (param) => {
-            let _param;
-            if(param) {
-                _param = param._fsPath;
-            }
-
-            // get path where scripts will be stored
-            ensurePath(_param, true).then((_path) => {
-
-                // get names of scripts that should be downloaded
-                return getDownloadScriptNames(loginData).then((_scripts) => {
-
-                    // set download path to scripts
-                    _scripts.forEach(function(script) {
-                        script.path = _path[0];
-                    });
-
-                    // only scripts in conflict-mode will get a new hash-value after download
-                    readConflictModes(_scripts);
-
-                    // download scripts
-                    return nodeDoc.sdsSession(loginData, _scripts, nodeDoc.dwonloadAll).then((scripts) => {
-                        let numscripts = scripts.length;
-                        updateEncryptStates(scripts);
-                        updateHashValues(scripts);
-                        vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
-                    });
-                });
-            }).catch((reason) => {
-                vscode.window.showErrorMessage('download all failed: ' + reason);
-            });
+            commandDownloadAll(loginData, param);
         })
     );
 
-    // ----------------------------------------------------------
-    //             Download Scriptnames
-    // ----------------------------------------------------------
+    // Download scriptnames
     context.subscriptions.push(
-        vscode.commands.registerCommand('extension.downloadScriptNames', () => {
-            nodeDoc.sdsSession(loginData, [], nodeDoc.getScriptNamesFromServer).then((_scripts) => {
-                setServerScripts(_scripts);
-                vscode.window.setStatusBarMessage('saved ' + _scripts.length + ' scriptnames to settings.json');
-            }).catch((reason) => {
-                vscode.window.showErrorMessage('download scriptnames failed: ' + reason);
-            });
+        vscode.commands.registerCommand('extension.downloadScriptNames', (param) => {
+            commandDownloadScriptnames(loginData, param);
         })
     );
 
-
-    // ----------------------------------------------------------
-    //             Get Login Data
-    // ----------------------------------------------------------
+    // Download script parameters
     context.subscriptions.push(
-        vscode.commands.registerCommand('extension.saveConfiguration', () => {
-            if(loginData) {
-                createLoginData(loginData).then(() => {
-                    vscode.window.setStatusBarMessage('Saved login data');
-                }).catch((reason) => {
-                    vscode.window.showWarningMessage(reason);
-                });
-            } else {
-                vscode.window.showErrorMessage('unexpected error: login data object missing');
-            }
+        vscode.commands.registerCommand('extension.downloadScriptParameters', (param) => {
+            commandDownloadScriptParameters(loginData, param);
+        })
+    );
+
+    // Save login data
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.saveConfiguration', (param) => {
+            commandSaveLoginData(loginData, param);
         })
     );
 
 
-
-    
-    // events...
 
     if(vscode.workspace) {
+        // register event commands...
 
-        // ----------------------------------------------------------
-        //             Upload Script On Save
-        // ----------------------------------------------------------
+        // Upload script on save
         let disposableOnSave: vscode.Disposable;
         disposableOnSave = vscode.workspace.onDidSaveTextDocument((textDocument) => {
-
-            // javascript files
-            // todo typescript files
-            if('.js' === path.extname(textDocument.fileName)) {
-
-                ensureUploadOnSave(textDocument.fileName).then((value) => {
-                    if(value) {
-                        return ensureScript(textDocument.fileName).then((_script) => {
-                            readEncryptStates([_script]);
-                            return nodeDoc.sdsSession(loginData, [_script], nodeDoc.uploadScript).then((value) => {
-                                let script = value[0];
-                                vscode.window.setStatusBarMessage('uploaded: ' + script.name);
-                            });
-                        });
-                    }
-                }).catch((reason) => {
-                    vscode.window.showErrorMessage('upload script failed: ' + reason);
-                });
-            }
+            commandUploadScriptOnSave(loginData, textDocument);
         }, this);
         context.subscriptions.push(disposableOnSave);
-
     }
-    
 
 
-
-    // todo...
-    // ----------------------------------------------------------
-    //             View Documentation
-    // ----------------------------------------------------------
-    context.subscriptions.push(
-        vscode.commands.registerCommand('extension.viewDocumentation', (file) => {
-            // file is not used, use active editor...
-            viewDocumentation();
-        })
-    );
-
-
-
-    // ----------------------------------------------------------
-    //             Check Documents Version
-    // ----------------------------------------------------------
+    // Check documents version
     nodeDoc.sdsSession(loginData, [], nodeDoc.getDocumentsVersion).then((value) => {
         let doc: nodeDoc.documentsT = value[0];
         if(Number(doc.version) < Number(REQUIRED_DOCUMENTS_VERSION)) {
@@ -409,22 +176,311 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
 
+    // todo...
+    // View documentation
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.viewDocumentation', (file) => {
+            // file is not used, use active editor...
+            viewDocumentation();
+        })
+    );
 
     vscode.window.setStatusBarMessage('vscode-documents-scripting is active');
 }
 
 
-
+/**
+ * Is called on deactivation of the extension.
+ */
 export function deactivate() {
     console.log('The extension is deactivated');
 }
 
 
-const FORCE_UPLOAD_YES = 'Yes, this one';
-const FORCE_UPLOAD_NO = 'No, not this one';
-const FORCE_UPLOAD_ALL = 'Yes, all during this command';
-const FORCE_UPLOAD_NONE = 'No, none during this command';
-const NO_CONFLICT = 'No conflict';
+
+
+/* --------------------------------------------------
+ *       Registered command functions.
+ * -------------------------------------------------- */
+
+/**
+ * Execute command 'Upload Script'
+ */
+function commandUploadScript(loginData: nodeDoc.LoginData, param: any) {
+    let _param;
+    if (param) {
+        _param = param._fsPath;
+    }
+    ensureScript(_param).then((_script) => {
+
+        readEncryptStates([_script]);
+        readHashValues([_script]);
+        return nodeDoc.sdsSession(loginData, [_script], nodeDoc.uploadScript).then((value) => {
+
+            // in case of conflict (server-script changed by someone else)
+            // returned script contains local and server code
+            // otherwise returned script == input script
+            let script:nodeDoc.scriptT = value[0];
+
+            // in case of conflict, ask if script should be force-uploaded
+            ensureUploadScripts([script]).then(([noConflict, forceUpload]) => {
+
+                // if forceUpload is empty function resolves anyway
+                nodeDoc.sdsSession(loginData, forceUpload, nodeDoc.uploadScript).then(() => {
+
+                    // if script had conflict and was not force-uploaded
+                    // conflict is true in this script
+                    if(true !== script.conflict) {
+                        updateHashValues([script]);
+                        updateEncryptStates([script]);
+                        vscode.window.setStatusBarMessage('uploaded: ' + script.name);
+                    }
+                }).catch((reason) => {
+                    vscode.window.showErrorMessage('force upload ' + script.name + ' failed: ' + reason);
+                });
+            }); // no reject in upload scripts
+            
+        });
+    }).catch((reason) => {
+        vscode.window.showErrorMessage('upload script failed: ' + reason);
+    });
+}
+
+/**
+ * Execute command 'Download Script'
+ */
+function commandDownloadScript(loginData: nodeDoc.LoginData, param: any) {
+    let _param;
+    if(param) {
+        _param = param._fsPath;
+    }
+
+    ensureScriptName(_param).then((scriptname) => {
+        return ensurePath(_param, true).then((_path) => {
+            let script: nodeDoc.scriptT = {name: scriptname, path: _path[0]};
+
+            // only scripts in conflict-mode will get a new hash-value after download
+            readConflictModes([script]);
+            return nodeDoc.sdsSession(loginData, [script], nodeDoc.downloadScript).then((value) => {
+                script = value[0];
+                updateEncryptStates([script]);
+                updateHashValues([script]);
+                vscode.window.setStatusBarMessage('downloaded: ' + script.name);
+            });
+        });
+    }).catch((reason) => {
+        vscode.window.showErrorMessage('download script failed: ' + reason);
+    });
+}
+
+/**
+ * Execute command 'Run Script'
+ */
+function commandRunScript(loginData: nodeDoc.LoginData, param: any, myOutputChannel) {
+    let _param;
+    if(param) {
+        _param = param._fsPath;
+    }
+
+    ensureScriptName(_param).then((scriptname) => {
+        let script: nodeDoc.scriptT = {name: scriptname};
+        return nodeDoc.sdsSession(loginData, [script], nodeDoc.runScript).then((value) => {
+            script = value[0];
+            myOutputChannel.append(script.output + os.EOL);
+            myOutputChannel.show();
+        });
+    }).catch((reason) => {
+        vscode.window.showErrorMessage('run script failed: ' + reason);
+    });
+}
+
+/**
+ * Execute command 'Compare Script'
+ */
+function commandCompareScript(loginData: nodeDoc.LoginData, param: any) {
+    let _param;
+    if(param) {
+        _param = param._fsPath;
+    }
+
+    ensurePath(_param, false, true).then((_path) => {
+        let scriptfolder = _path[0];
+        let _scriptname = _path[1];
+        return ensureScriptName(_scriptname).then((scriptname) => {
+            let comparepath;
+            if(vscode.workspace) {
+                comparepath = path.join(vscode.workspace.rootPath, COMPARE_FOLDER);
+            } else {
+                comparepath = path.join(scriptfolder, COMPARE_FOLDER);
+            }
+            return createFolder(comparepath, true).then(() => {
+                let script: nodeDoc.scriptT = {name: scriptname, path: comparepath, rename: COMPARE_FILE_PREFIX + scriptname};
+                return nodeDoc.sdsSession(loginData, [script], nodeDoc.downloadScript).then((value) => {
+                    script = value[0];
+                    compareScript(scriptfolder, scriptname);
+                });
+            });
+        });
+    }).catch((reason) => {
+        vscode.window.showErrorMessage('Compare script failed: ' + reason);
+    });
+}
+
+/**
+ * Execute command 'Upload All Scripts'
+ */
+function commandUploadAll(loginData: nodeDoc.LoginData, param: any) {
+    let _param;
+    if(param) {
+        _param = param._fsPath;
+    }
+
+    ensurePath(_param).then((folder) => {
+        return nodeDoc.getScriptsFromFolder(folder[0]).then((folderscripts) => {
+
+            readEncryptStates(folderscripts);
+            readHashValues(folderscripts);
+            return nodeDoc.sdsSession(loginData, folderscripts, nodeDoc.uploadAll).then((value) => {
+                let retscripts: nodeDoc.scriptT[] = value;
+                
+                // retscripts also contains the retscripts that haven't been uploaded because
+                // of a conflict, in that case member conflict is true and the script contains
+                // the local and the server code
+
+                // ask which conflict scripts should be force uploaded and
+                // get all uploaded scripts
+                ensureUploadScripts(retscripts).then(([noConflict, forceUpload]) => {
+
+                    // forceUpload might be empty, function resolves anyway
+                    nodeDoc.sdsSession(loginData, forceUpload, nodeDoc.uploadAll).then((value) => {
+                        let retscripts2:nodeDoc.scriptT[] = value;
+
+                        // retscripts2 might be empty
+                        let uploaded = noConflict.concat(retscripts2);
+
+                        // if script had conflict and was not force-uploaded conflict
+                        // is true in this script, hash values and encrypt states
+                        // are only updated for scripts without conflict
+                        updateHashValues(uploaded);
+                        updateEncryptStates(uploaded);
+
+                        vscode.window.setStatusBarMessage('uploaded ' + uploaded.length + ' scripts from ' + folder[0]);
+                    }).catch((reason) => {
+                        vscode.window.showErrorMessage('force upload of conflict scripts failed: ' + reason);
+                    });
+                });
+            });
+        });
+    }).catch((reason) => {
+        vscode.window.showErrorMessage('upload all failed: ' + reason);
+    });
+}
+
+/**
+ * Execute command 'Download All Scripts'
+ */
+function commandDownloadAll(loginData: nodeDoc.LoginData, param: any) {
+    let _param;
+    if(param) {
+        _param = param._fsPath;
+    }
+
+    // get path where scripts will be stored
+    ensurePath(_param, true).then((_path) => {
+
+        // get names of scripts that should be downloaded
+        return getDownloadScriptNames(loginData).then((_scripts) => {
+
+            // set download path to scripts
+            _scripts.forEach(function(script) {
+                script.path = _path[0];
+            });
+
+            // only scripts in conflict-mode will get a new hash-value after download
+            readConflictModes(_scripts);
+
+            // download scripts
+            return nodeDoc.sdsSession(loginData, _scripts, nodeDoc.dwonloadAll).then((scripts) => {
+                let numscripts = scripts.length;
+                updateEncryptStates(scripts);
+                updateHashValues(scripts);
+                vscode.window.setStatusBarMessage('downloaded ' + numscripts + ' scripts');
+            });
+        });
+    }).catch((reason) => {
+        vscode.window.showErrorMessage('download all failed: ' + reason);
+    });
+}
+
+/**
+ * Execute command 'Download Scriptnames'
+ */
+function commandDownloadScriptnames(loginData: nodeDoc.LoginData, param: any) {
+    nodeDoc.sdsSession(loginData, [], nodeDoc.getScriptNamesFromServer).then((_scripts) => {
+        setServerScripts(_scripts);
+        vscode.window.setStatusBarMessage('saved ' + _scripts.length + ' scriptnames to settings.json');
+    }).catch((reason) => {
+        vscode.window.showErrorMessage('download scriptnames failed: ' + reason);
+    });
+}
+
+/**
+ * Execute command 'Download Script Parameters'
+ */
+function commandDownloadScriptParameters(loginData: nodeDoc.LoginData, param: any) {
+    console.log('commandDownloadScriptParameters');
+}
+
+
+
+/**
+ * Execute command 'Save Login Data'
+ */
+function commandSaveLoginData(loginData: nodeDoc.LoginData, param: any) {
+    if(loginData) {
+        createLoginData(loginData).then(() => {
+            vscode.window.setStatusBarMessage('Saved login data');
+        }).catch((reason) => {
+            vscode.window.showWarningMessage(reason);
+        });
+    } else {
+        vscode.window.showErrorMessage('unexpected error: login data object missing');
+    }
+}
+
+/**
+ * Execute command 'Upload Script' on event 'Save'
+ */
+function commandUploadScriptOnSave(loginData: nodeDoc.LoginData, textDocument: vscode.TextDocument) {
+    if('.js' === path.extname(textDocument.fileName)) {
+
+        ensureUploadOnSave(textDocument.fileName).then((value) => {
+            if(value) {
+                return ensureScript(textDocument.fileName).then((_script) => {
+                    readEncryptStates([_script]);
+                    return nodeDoc.sdsSession(loginData, [_script], nodeDoc.uploadScript).then((value) => {
+                        let script = value[0];
+                        vscode.window.setStatusBarMessage('uploaded: ' + script.name);
+                    });
+                });
+            }
+        }).catch((reason) => {
+            vscode.window.showErrorMessage('upload script failed: ' + reason);
+        });
+    }
+}
+
+
+
+
+
+
+
+/* --------------------------------------------------
+ *       Some more helper functions.
+ * -------------------------------------------------- */
+
+
 
 /**
  * Subfunction of ensureUploadScripts.
@@ -608,6 +664,9 @@ function readDownloadScripts(): nodeDoc.scriptT[] {
 }
 
 
+
+
+
 function setServerScripts(scripts: nodeDoc.scriptT[]) {
     if(!vscode.workspace) {
         return;
@@ -628,6 +687,9 @@ function setServerScripts(scripts: nodeDoc.scriptT[]) {
     // update list in settings.json
     conf.update('serverScripts', scriptnames);
 }
+
+
+
 
 
 /**
@@ -669,6 +731,9 @@ function readEncryptStates(scripts: nodeDoc.scriptT[]) {
         }
     });
 }
+
+
+
 
 /**
  * Store the encrypt states of the scripts in settings.json.
@@ -1137,7 +1202,9 @@ async function ensureScript(param?: string | vscode.TextDocument): Promise<nodeD
 
 
 
-// additional function to get login data...
+/* --------------------------------------------------
+ *       Additional function to get login data
+ * -------------------------------------------------- */
 
 
 async function createLoginData(_loginData: nodeDoc.LoginData): Promise<void> {
@@ -1300,6 +1367,13 @@ async function createLaunchJson(_loginData:nodeDoc.LoginData): Promise<void> {
 
 
 
+
+/* --------------------------------------------------
+ *       todo...
+ * -------------------------------------------------- */
+
+
+
 function viewDocumentation() {
     let portalscriptdocu = 'http://doku.otris.de/api/portalscript/';
     urlExists(portalscriptdocu, function(err, exists) {
@@ -1390,8 +1464,6 @@ function viewDocumentation() {
 
 
 
-
-// todo...
 
 
 // rename to getJSFromTS
